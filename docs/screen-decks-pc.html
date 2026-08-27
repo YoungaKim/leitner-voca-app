@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>라이트너 · 단어장 (PC Web)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f3f4f8; --panel:#fff; --line:#e5e7ef; --ink:#171a21; --smut:#6b7280; --muted2:#9aa1b0;
+    --primary:#4f46e5; --primary2:#7c72f0; --ok:#16a34a; --no:#dc2626;
+    --b1:#ef4444; --b2:#f97316; --b3:#f59e0b; --b4:#84cc16; --b5:#22c55e; --b6:#14b8a6; --grad:#dca512;
+    --disp:'Space Grotesk',sans-serif; --body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg); color:var(--ink); font-family:var(--body); -webkit-font-smoothing:antialiased}
+  .label{position:fixed; top:14px; left:20px; font-family:var(--disp); font-size:11px; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--muted2); z-index:20; background:var(--bg); padding:2px 6px}
+  .label b{color:var(--ink)}
+
+  .shell{display:flex; min-height:100vh}
+  .side{width:236px; flex:none; background:var(--panel); border-right:1px solid var(--line);
+    padding:28px 18px; display:flex; flex-direction:column; gap:6px}
+  .brand{font-family:var(--disp); font-weight:700; font-size:16px; display:flex; align-items:center; gap:8px;
+    margin-bottom:26px; padding:0 6px}
+  .brand .mark{width:26px; height:26px; border-radius:8px; background:linear-gradient(135deg,var(--primary),var(--primary2))}
+  .nav a{display:flex; align-items:center; gap:11px; padding:11px 12px; border-radius:10px; text-decoration:none;
+    color:var(--smut); font-size:14px; font-weight:500}
+  .nav a .ic{width:18px; height:18px; border-radius:5px; background:var(--line)}
+  .nav a.on{background:#eef0ff; color:var(--primary); font-weight:700}
+  .nav a.on .ic{background:var(--primary)}
+
+  /* master column: deck list */
+  .master{width:300px; flex:none; background:var(--panel); border-right:1px solid var(--line);
+    padding:26px 18px; display:flex; flex-direction:column; gap:16px; overflow:auto}
+  .master .hd{display:flex; align-items:center; justify-content:space-between; padding:0 4px}
+  .master .hd h2{font-family:var(--disp); font-weight:700; font-size:16px}
+  .master .hd button{border:none; background:var(--primary); color:#fff; border-radius:9px; padding:7px 11px;
+    font-family:var(--disp); font-weight:700; font-size:12px; cursor:pointer}
+  .search{display:flex; align-items:center; gap:8px; background:#f0f1f6; border-radius:10px; padding:10px 12px;
+    font-size:12.5px; color:var(--smut)}
+  .deckcard{border:1.5px solid var(--line); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:8px; cursor:pointer}
+  .deckcard.on{border-color:var(--primary); background:#f7f7ff}
+  .deckcard .t{display:flex; justify-content:space-between; align-items:baseline}
+  .deckcard .t b{font-family:var(--disp); font-size:13.5px}
+  .deckcard .t span{font-size:10.5px; color:var(--muted2)}
+  .distbar{height:9px; border-radius:5px; overflow:hidden; display:flex}
+  .distbar i{height:100%}
+  .deckcard .n{font-size:10.5px; color:var(--muted2)}
+
+  /* detail column: card list */
+  .detail{flex:1; padding:28px 34px; display:flex; flex-direction:column; gap:16px; min-width:0}
+  .dhd{display:flex; align-items:center; justify-content:space-between}
+  .dhd h1{font-family:var(--disp); font-weight:700; font-size:22px}
+  .dhd p{font-size:12.5px; color:var(--muted2); margin-top:2px}
+  .btn{border:none; border-radius:11px; padding:11px 18px; font-family:var(--disp); font-weight:700; font-size:13.5px; cursor:pointer}
+  .btn.pri{background:var(--primary); color:#fff}
+  .filters{display:flex; gap:8px}
+  .chip{display:inline-flex; align-items:center; padding:8px 14px; border-radius:999px; border:1px solid var(--line);
+    font-size:12.5px; background:#fff; font-weight:500}
+  .chip.on{background:var(--primary); border-color:var(--primary); color:#fff; font-weight:700}
+
+  .table{background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden}
+  .trow{display:flex; align-items:center; gap:12px; padding:13px 18px; border-bottom:1px solid var(--line)}
+  .trow:last-child{border-bottom:none}
+  .trow .dot{width:9px; height:9px; border-radius:3px; flex:none}
+  .trow .en{flex:1; font-size:13.5px; font-weight:600}
+  .trow .kr{flex:1; font-size:12.5px; color:var(--muted2)}
+  .trow .box{font-size:11.5px; color:var(--muted2); width:52px; text-align:right}
+
+  /* rightmost: edit panel (PC = list+detail+edit together) */
+  .editpanel{width:340px; flex:none; background:var(--panel); border-left:1px solid var(--line);
+    padding:26px 22px; display:flex; flex-direction:column; gap:16px}
+  .editpanel h2{font-family:var(--disp); font-weight:700; font-size:15px}
+  .field{display:flex; flex-direction:column; gap:6px}
+  .field .lbl{font-size:11.5px; color:var(--smut); font-weight:600}
+  .field .box{border:1.5px solid var(--line); border-radius:11px; padding:12px; font-size:13px}
+  .field .box.sm{color:var(--muted2); font-size:12px}
+  .row2{display:flex; gap:8px; flex-wrap:wrap}
+  .toggle{width:32px; height:18px; border-radius:999px; background:var(--primary); position:relative; flex:none}
+  .toggle::after{content:""; position:absolute; top:2px; right:2px; width:14px; height:14px; border-radius:50%; background:#fff}
+
+  .foot-note{grid-column:1/-1; padding:14px 34px 34px; color:var(--muted2); font-size:12.5px; line-height:1.8; max-width:900px}
+  .foot-note b{color:var(--ink)}
+
+  @media (max-width:1180px){
+    .editpanel{display:none}
+  }
+  @media (max-width:900px){
+    .side{display:none}
+  }
+</style>
+</head>
+<body>
+  <div class="label">Leitner Vocab · <b>단어장 / PC Web</b> · §0-1 목록+상세+편집 동시 표시</div>
+  <div class="shell">
+    <aside class="side">
+      <div class="brand"><span class="mark"></span>라이트너</div>
+      <nav class="nav">
+        <a><span class="ic"></span>홈</a>
+        <a class="on"><span class="ic"></span>단어장</a>
+        <a><span class="ic"></span>통계</a>
+        <a><span class="ic"></span>설정</a>
+      </nav>
+    </aside>
+
+    <div class="master">
+      <div class="hd"><h2>단어장</h2><button>＋ 새 단어장</button></div>
+      <div class="search">🔍 단어장 검색…</div>
+      <div class="deckcard on">
+        <div class="t"><b>토익 필수 800</b><span>D-14</span></div>
+        <div class="distbar">
+          <i style="background:var(--b1);width:20%"></i><i style="background:var(--b2);width:12%"></i>
+          <i style="background:var(--b3);width:18%"></i><i style="background:var(--b4);width:14%"></i>
+          <i style="background:var(--b5);width:16%"></i><i style="background:var(--b6);width:20%"></i>
+        </div>
+        <div class="n">812 문장</div>
+      </div>
+      <div class="deckcard">
+        <div class="t"><b>토플 아카데믹</b><span>—</span></div>
+        <div class="distbar">
+          <i style="background:var(--b1);width:34%"></i><i style="background:var(--b2);width:22%"></i>
+          <i style="background:var(--b3);width:18%"></i><i style="background:var(--b4);width:12%"></i>
+          <i style="background:var(--b5);width:8%"></i><i style="background:var(--b6);width:6%"></i>
+        </div>
+        <div class="n">428 문장</div>
+      </div>
+      <div class="deckcard">
+        <div class="t"><b>비즈니스 표현</b><span>졸업 62%</span></div>
+        <div class="distbar">
+          <i style="background:var(--b1);width:6%"></i><i style="background:var(--b2);width:8%"></i>
+          <i style="background:var(--b3);width:10%"></i><i style="background:var(--b4);width:14%"></i>
+          <i style="background:var(--b5);width:18%"></i><i style="background:var(--b6);width:44%"></i>
+        </div>
+        <div class="n">120 문장</div>
+      </div>
+    </div>
+
+    <div class="detail">
+      <div class="dhd">
+        <div><h1>토익 필수 800</h1><p>812 문장 · D-14 · CSV 가져오기 3회</p></div>
+        <button class="btn pri">＋ 카드 추가</button>
+      </div>
+      <div class="filters">
+        <span class="chip on">전체</span><span class="chip">박스별</span><span class="chip">취약</span><span class="chip">졸업</span>
+      </div>
+      <div class="table">
+        <div class="trow"><span class="dot" style="background:var(--b1)"></span><span class="en">Smartphones are ubiquitous.</span><span class="kr">스마트폰은 어디에나 있다.</span><span class="box">박스 1</span></div>
+        <div class="trow"><span class="dot" style="background:var(--b3)"></span><span class="en">The meeting was postponed.</span><span class="kr">회의가 연기되었다.</span><span class="box">박스 3</span></div>
+        <div class="trow"><span class="dot" style="background:var(--b2)"></span><span class="en">I appreciate your patience.</span><span class="kr">인내심에 감사드립니다.</span><span class="box">박스 2</span></div>
+        <div class="trow"><span class="dot" style="background:var(--b6)"></span><span class="en">Please find attached the report.</span><span class="kr">첨부된 보고서를 확인해 주세요.</span><span class="box">박스 6</span></div>
+        <div class="trow"><span class="dot" style="background:var(--b1)"></span><span class="en">The deadline was extended.</span><span class="kr">마감일이 연장되었다.</span><span class="box">박스 1</span></div>
+        <div class="trow"><span class="dot" style="background:var(--b5)"></span><span class="en">We look forward to your reply.</span><span class="kr">답변을 기다리겠습니다.</span><span class="box">박스 5</span></div>
+      </div>
+    </div>
+
+    <aside class="editpanel">
+      <h2>카드 편집</h2>
+      <div class="field"><div class="lbl">한글 문장 (제시)</div><div class="box">스마트폰은 어디에나 있다.</div></div>
+      <div class="field"><div class="lbl">영어 문장 (정답)</div><div class="box">Smartphones are ubiquitous.</div></div>
+      <div class="field"><div class="lbl">청크·문법 메모</div><div class="box sm">be동사 + 형용사 구문</div></div>
+      <div class="row2">
+        <span class="chip">🔊 자동 TTS</span><span class="chip">✂️ 청크 지정</span>
+      </div>
+      <div class="row2" style="align-items:center; justify-content:space-between; margin-top:auto">
+        <span style="font-size:12px; color:var(--smut)">저장 후 계속 추가</span>
+        <span class="toggle"></span>
+      </div>
+      <button class="btn pri">저장</button>
+    </aside>
+  </div>
+  <div class="foot-note">
+    <b>03-UXUI.md §3.4 / §0-1</b> 반영 — 모바일은 목록→상세→편집이 순차 화면이지만, PC는 <b>덱 목록 · 카드 목록 · 편집 패널을 3열로 동시에</b> 표시해
+    "더 넓은 레이아웃(카드 목록+상세 동시 표시)" 원칙을 적용. 좁은 창에서는 편집 패널이 접힘.
+  </div>
+</body>
+</html>

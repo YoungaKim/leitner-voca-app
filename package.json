@@ -1,0 +1,12 @@
+{
+  "name": "leitner-voca-app",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test:core": "npm run test --workspace=@leitner/core",
+    "dev:web": "npm run dev --workspace=@leitner/web"
+  }
+}

@@ -1,0 +1,16 @@
+id,한글 문장,영어 문장,청크·문법 메모,level,topic,added_at
+w001,그는 회의에 늦었다.,He was late for the meeting.,"late for + 명사 (late at 아님)",B1,전치사,2026-08-24
+w002,비행기가 몇 시에 공항에 도착하나요?,What time does the plane arrive at the airport?,"arrive at + 장소(공항·건물 등)",B1,전치사,2026-08-24
+w003,이 결과는 여러 요인에 달려 있다.,This result depends on several factors.,depend on + 명사,B1,전치사,2026-08-24
+w004,그녀는 마케팅 부서를 담당하고 있다.,She is in charge of the marketing department.,in charge of + 명사,B1,전치사,2026-08-24
+w005,비가 오면 우리는 소풍을 취소할 것이다.,If it rains, we will cancel the picnic.,"조건문은 when이 아니라 if (가정: ~하면)",B1,조건문·가정법,2026-08-24
+w006,시간이 있으면 그 보고서를 검토하겠습니다.,If I have time, I will review the report.,"if절 현재시제 + 주절 will",B1,조건문·가정법,2026-08-24
+w007,예산이 더 있었다면 우리는 새 장비를 샀을 것이다.,"If we had had a bigger budget, we would have bought new equipment.","가정법 과거완료: if + had p.p. / would have p.p.",B1,조건문·가정법,2026-08-24
+w008,미리 예약했더라면 더 싼 티켓을 구할 수 있었을 텐데.,"If we had booked earlier, we could have gotten cheaper tickets.","가정법 과거완료: if + had p.p. / could have p.p.",B1,조건문·가정법,2026-08-24
+w009,어제 만난 그 남자는 새 매니저였다.,The man I met yesterday was the new manager.,"주절이 과거(met)면 관계절도 과거(was)",B1,시제 일관성,2026-08-24
+w010,그녀는 자신이 마감을 놓쳤다고 말했다.,She said that she had missed the deadline.,"주절 과거(said) + 종속절은 그보다 앞선 일 → 과거완료",B1,시제 일관성,2026-08-24
+w011,우리는 그 프로젝트가 성공할 거라고 생각했다.,We thought that the project would succeed.,"주절 과거(thought) → will이 would로 시제 일치",B1,시제 일관성,2026-08-24
+w012,그가 도착했을 때 회의는 이미 시작되어 있었다.,"When he arrived, the meeting had already started.",먼저 일어난 일은 과거완료,B1,시제 일관성,2026-08-24
+w013,이 모델이 예전 모델보다 더 빠르다.,This model is faster than the previous one.,"비교급은 -er, more+er 중복 금지",B1,비교급·가정법,2026-08-24
+w014,우리가 더 일찍 신청했다면 더 싼 항공권을 구할 수 있었을 것이다.,"If we had applied earlier, we could have found cheaper flights.","가정법 과거완료 + 비교급(cheaper)",B1,비교급·가정법,2026-08-24
+w015,더 많은 예산이 있었다면 우리는 그 프로젝트를 더 빨리 끝낼 수 있었을 것이다.,"If we had had more budget, we could have finished the project faster.","가정법 과거완료 + 비교급(faster)",B1,비교급·가정법,2026-08-24

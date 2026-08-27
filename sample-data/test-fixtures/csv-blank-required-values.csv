@@ -1,0 +1,5 @@
+id,한글 문장,영어 문장,청크·문법 메모,level,topic,added_at
+t401,이 행은 정상이다.,This row is valid.,정상 행,A2,일상,2026-08-25
+,이 행은 id가 비어 있다.,This row has an empty id.,id 누락 → 건너뛰어야 함,A2,일상,2026-08-25
+t403,,This row has an empty Korean sentence.,한글 문장 누락 → 건너뛰어야 함,A2,일상,2026-08-25
+t404,이 행은 영어 문장이 비어 있다.,,영어 문장 누락 → 건너뛰어야 함,A2,일상,2026-08-25

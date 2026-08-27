@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>라이트너 · 단어장 (Mobile)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f1116; --ink:#e7eaf0; --muted:#8a93a3;
+    --screen:#fbfcfd; --sink:#1b2028; --smut:#8b93a2; --sline:#e8ebef; --panel:#f4f5f8;
+    --primary:#4f46e5; --ok:#16a34a; --no:#dc2626;
+    --b1:#ef4444; --b2:#f97316; --b3:#f59e0b; --b4:#84cc16; --b5:#22c55e; --b6:#14b8a6; --grad:#dca512;
+    --disp:'Space Grotesk',sans-serif; --body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 700px at 20% -10%, #1b2030 0%, transparent 55%), var(--bg);
+    min-height:100vh; display:flex; align-items:flex-start; justify-content:center;
+    padding:48px 20px 80px; font-family:var(--body); -webkit-font-smoothing:antialiased;
+  }
+  .label{position:fixed; top:18px; left:24px; font-family:var(--disp); font-size:11px; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--muted); z-index:10}
+  .label b{color:var(--ink)}
+  .gallery{display:flex; gap:36px; flex-wrap:wrap; justify-content:center; max-width:1100px}
+  .unit{display:flex; flex-direction:column; align-items:center; gap:14px}
+  .cap{font-family:var(--disp); font-size:14px; font-weight:700; color:var(--ink); text-align:center}
+  .cap span{display:block; font-family:var(--body); font-weight:400; font-size:11.5px; color:var(--muted); margin-top:2px}
+
+  .device{width:340px; background:#232833; border-radius:40px; padding:12px;
+    box-shadow:0 40px 90px -30px rgba(0,0,0,.75), inset 0 0 0 1px rgba(255,255,255,.05)}
+  .screen{width:100%; height:736px; background:var(--screen); color:var(--sink);
+    border-radius:30px; overflow:hidden; display:flex; flex-direction:column; position:relative}
+  .notch{position:absolute; top:0; left:50%; transform:translateX(-50%); width:110px; height:24px;
+    background:#232833; border-radius:0 0 14px 14px; z-index:5}
+  .statusbar{height:46px; flex:none; display:flex; align-items:flex-end; justify-content:space-between;
+    padding:0 22px 8px; font-family:var(--disp); font-weight:600; font-size:14px}
+  .topbar{flex:none; display:flex; align-items:center; justify-content:space-between; padding:6px 20px 14px;
+    font-family:var(--disp); font-weight:700; font-size:15px}
+  .topbar .ic{font-size:15px; color:var(--smut); font-weight:500}
+
+  .content{flex:1; padding:0 20px; display:flex; flex-direction:column; gap:12px; overflow:hidden}
+  .row2{display:flex; gap:8px; flex-wrap:wrap}
+  .chip{display:inline-flex; align-items:center; padding:7px 13px; border-radius:999px; border:1px solid var(--sline);
+    font-size:11.5px; color:var(--sink); background:#fff; font-weight:500}
+  .chip.on{background:var(--primary); border-color:var(--primary); color:#fff; font-weight:700}
+
+  .deckcard{border:1px solid var(--sline); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:9px}
+  .deckcard .t{display:flex; justify-content:space-between; align-items:baseline}
+  .deckcard .t b{font-family:var(--disp); font-size:14.5px}
+  .deckcard .t span{font-size:11px; color:var(--smut)}
+  .distbar{height:10px; border-radius:6px; overflow:hidden; display:flex}
+  .distbar i{height:100%}
+  .deckcard .n{font-size:11px; color:var(--smut)}
+
+  .search{display:flex; align-items:center; gap:8px; background:var(--panel); border-radius:12px; padding:11px 14px;
+    font-size:12.5px; color:var(--smut)}
+
+  .cardrow{display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--sline)}
+  .cardrow .dot{width:9px; height:9px; border-radius:3px; flex:none}
+  .cardrow .txt{flex:1; min-width:0}
+  .cardrow .en{font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .cardrow .kr{font-size:11px; color:var(--smut); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px}
+
+  .field{display:flex; flex-direction:column; gap:6px}
+  .field .lbl{font-size:11.5px; color:var(--smut); font-weight:600}
+  .field .box{border:1.5px solid var(--sline); border-radius:12px; padding:12px; font-size:13px; color:var(--sink); min-height:22px}
+  .field .box.sm{min-height:16px; font-size:12px; color:var(--smut)}
+
+  .toggle{width:34px; height:19px; border-radius:999px; background:var(--primary); position:relative; flex:none}
+  .toggle::after{content:""; position:absolute; top:2px; right:2px; width:15px; height:15px; border-radius:50%; background:#fff}
+
+  .spacer{flex:1}
+  .footer{flex:none; padding:14px 20px 24px}
+  .btn{border-radius:14px; padding:15px; text-align:center; font-family:var(--disp); font-weight:700; font-size:14.5px}
+  .btn.pri{background:var(--primary); color:#fff}
+
+  .foot-note{max-width:1100px; margin-top:26px; color:var(--muted); font-size:12.5px; line-height:1.8}
+  .foot-note b{color:var(--ink)}
+</style>
+</head>
+<body>
+  <div class="label">Leitner Vocab · <b>단어장 / Mobile</b> · §3.4</div>
+  <div>
+    <div class="gallery">
+
+      <!-- 목록 -->
+      <div class="unit">
+        <div class="device"><div class="screen">
+          <div class="notch"></div>
+          <div class="statusbar"><span>9:41</span><span>▮▮▮ 📶 🔋</span></div>
+          <div class="topbar"><span>단어장</span><span class="ic">＋</span></div>
+          <div class="content">
+            <div class="row2">
+              <span class="chip on">＋ 단어장</span><span class="chip">CSV 가져오기</span><span class="chip">스타터 덱</span>
+            </div>
+            <div class="deckcard">
+              <div class="t"><b>토익 필수 800</b><span>D-14</span></div>
+              <div class="distbar">
+                <i style="background:var(--b1);width:20%"></i><i style="background:var(--b2);width:12%"></i>
+                <i style="background:var(--b3);width:18%"></i><i style="background:var(--b4);width:14%"></i>
+                <i style="background:var(--b5);width:16%"></i><i style="background:var(--b6);width:20%"></i>
+              </div>
+              <div class="n">812 문장</div>
+            </div>
+            <div class="deckcard">
+              <div class="t"><b>토플 아카데믹</b><span>—</span></div>
+              <div class="distbar">
+                <i style="background:var(--b1);width:34%"></i><i style="background:var(--b2);width:22%"></i>
+                <i style="background:var(--b3);width:18%"></i><i style="background:var(--b4);width:12%"></i>
+                <i style="background:var(--b5);width:8%"></i><i style="background:var(--b6);width:6%"></i>
+              </div>
+              <div class="n">428 문장</div>
+            </div>
+            <div class="deckcard">
+              <div class="t"><b>비즈니스 표현</b><span>졸업 62%</span></div>
+              <div class="distbar">
+                <i style="background:var(--b1);width:6%"></i><i style="background:var(--b2);width:8%"></i>
+                <i style="background:var(--b3);width:10%"></i><i style="background:var(--b4);width:14%"></i>
+                <i style="background:var(--b5);width:18%"></i><i style="background:var(--b6);width:44%"></i>
+              </div>
+              <div class="n">120 문장</div>
+            </div>
+          </div>
+        </div></div>
+        <div class="cap">단어장 목록<span>덱마다 박스 분포 미니 바(색 스택)</span></div>
+      </div>
+
+      <!-- 상세 -->
+      <div class="unit">
+        <div class="device"><div class="screen">
+          <div class="notch"></div>
+          <div class="statusbar"><span>9:41</span><span>▮▮▮ 📶 🔋</span></div>
+          <div class="topbar"><span>← 토익 필수 800</span><span class="ic">🔍</span></div>
+          <div class="content">
+            <div class="search">🔍 문장 검색…</div>
+            <div class="row2">
+              <span class="chip on">전체</span><span class="chip">박스별</span><span class="chip">취약</span><span class="chip">졸업</span>
+            </div>
+            <div>
+              <div class="cardrow"><span class="dot" style="background:var(--b1)"></span><div class="txt"><div class="en">Smartphones are ubiquitous.</div><div class="kr">스마트폰은 어디에나 있다.</div></div></div>
+              <div class="cardrow"><span class="dot" style="background:var(--b3)"></span><div class="txt"><div class="en">The meeting was postponed.</div><div class="kr">회의가 연기되었다.</div></div></div>
+              <div class="cardrow"><span class="dot" style="background:var(--b2)"></span><div class="txt"><div class="en">I appreciate your patience.</div><div class="kr">인내심에 감사드립니다.</div></div></div>
+              <div class="cardrow"><span class="dot" style="background:var(--b6)"></span><div class="txt"><div class="en">Please find attached the report.</div><div class="kr">첨부된 보고서를 확인해 주세요.</div></div></div>
+              <div class="cardrow"><span class="dot" style="background:var(--b1)"></span><div class="txt"><div class="en">The deadline was extended.</div><div class="kr">마감일이 연장되었다.</div></div></div>
+              <div class="cardrow"><span class="dot" style="background:var(--b5)"></span><div class="txt"><div class="en">We look forward to your reply.</div><div class="kr">답변을 기다리겠습니다.</div></div></div>
+            </div>
+            <div class="spacer"></div>
+          </div>
+          <div class="footer"><div class="btn pri">＋ 카드 추가</div></div>
+        </div></div>
+        <div class="cap">덱 상세 · 카드 목록<span>검색 + 필터, 박스 색 점으로 상태 표시</span></div>
+      </div>
+
+      <!-- 카드 편집 -->
+      <div class="unit">
+        <div class="device"><div class="screen">
+          <div class="notch"></div>
+          <div class="statusbar"><span>9:41</span><span>▮▮▮ 📶 🔋</span></div>
+          <div class="topbar"><span>← 카드 편집</span><span class="ic" style="color:var(--primary)">저장</span></div>
+          <div class="content" style="gap:16px">
+            <div class="field"><div class="lbl">한글 문장 (제시)</div><div class="box">스마트폰은 어디에나 있다.</div></div>
+            <div class="field"><div class="lbl">영어 문장 (정답)</div><div class="box">Smartphones are ubiquitous.</div></div>
+            <div class="field"><div class="lbl">청크·문법 메모 (선택)</div><div class="box sm">be동사 + 형용사 구문 · 청크 3개</div></div>
+            <div class="row2">
+              <span class="chip">🔊 자동 TTS</span><span class="chip">✂️ 청크 지정</span><span class="chip">🏷️ 태그</span>
+            </div>
+            <div class="spacer"></div>
+            <div class="row2" style="align-items:center; justify-content:space-between">
+              <span style="font-size:12.5px; color:var(--smut)">저장 후 계속 추가</span>
+              <span class="toggle"></span>
+            </div>
+          </div>
+          <div class="footer"><div class="btn pri">저장</div></div>
+        </div></div>
+        <div class="cap">카드 추가 · 편집<span>한글/영어/메모 + 청크 드래그 지정</span></div>
+      </div>
+
+    </div>
+    <div class="foot-note">
+      <b>03-UXUI.md §3.4</b> 반영 — 단어장 목록(박스 분포 미니 바) → 덱 상세(검색·필터·박스 색 점) → 카드 편집(한글/영어 문장 + 청크 메모) 흐름을 실제 크기로 표현.
+    </div>
+  </div>
+</body>
+</html>

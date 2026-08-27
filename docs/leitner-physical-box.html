@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>라이트너 물리 상자 시각화</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f1116; --ink:#e7eaf0; --muted:#8a93a3; --line:#2b313c; --panel:#171a21;
+    --primary:#4f46e5; --empty:#2a2f39;
+    --b1:#ef4444; --b2:#f97316; --b3:#f59e0b; --b4:#84cc16; --b5:#22c55e; --b6:#14b8a6; --grad:#dca512;
+    --disp:'Space Grotesk',sans-serif; --body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 700px at 15% -10%, #1b2030 0%, transparent 55%), var(--bg);
+    color:var(--ink); font-family:var(--body); -webkit-font-smoothing:antialiased;
+    padding:48px 28px 80px; display:flex; flex-direction:column; align-items:center; gap:40px;
+  }
+  .head{max-width:960px; text-align:left; width:100%}
+  .eyebrow{font-family:var(--disp); font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); font-weight:600}
+  h1{font-family:var(--disp); font-size:26px; font-weight:700; margin:6px 0 8px}
+  .sub{color:var(--muted); font-size:13.5px; max-width:680px; line-height:1.7}
+  .sub b{color:var(--ink)}
+
+  .boxwrap{width:100%; max-width:960px; background:var(--panel); border:1px solid var(--line); border-radius:22px;
+    padding:36px 28px 24px; overflow-x:auto}
+  svg{display:block; margin:0 auto; overflow:visible; min-width:860px}
+
+  .caption{font-size:11px; fill:var(--muted)}
+
+  .legendrow{width:100%; max-width:960px; display:flex; flex-wrap:wrap; gap:18px; padding:0 4px}
+  .lg{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted)}
+  .lg i{width:12px; height:12px; border-radius:3px; display:inline-block}
+
+  .foot{max-width:960px; color:var(--muted); font-size:12.5px; line-height:1.85; border-top:1px solid var(--line);
+    padding-top:18px; width:100%}
+  .foot b{color:var(--ink)}
+</style>
+</head>
+<body>
+  <div class="head">
+    <div class="eyebrow">Leitner Vocab · 상자 현황 시각화 (계단형 차트 안)</div>
+    <h1>박스가 계단처럼 커지는 채움 차트</h1>
+    <p class="sub">
+      박스1→졸업으로 갈수록 칸 <b>높이(용량)</b>가 계단식으로 커진다 — 복습 주기가 길어질수록 더 많은 문장을 담는 칸이라는 의미.
+      칸 안에서 <b>바닥부터 차오른 색</b>이 그 칸에 실제로 쌓인 문장 비율(포화도)을 나타낸다.
+    </p>
+  </div>
+
+  <div class="boxwrap">
+    <svg viewBox="0 0 870 340" xmlns="http://www.w3.org/2000/svg">
+      <!-- 7 columns, equal width(124), 서로 붙어서 계단 실루엣. height = 용량(계단), 채움 = 포화도 -->
+      <!-- col: x0 / height / pct / count / label -->
+      <!-- 1: 0-124   h90  pct100 138 -->
+      <!-- 2: 124-248 h120 pct51  71  -->
+      <!-- 3: 248-372 h150 pct77  106 -->
+      <!-- 4: 372-496 h180 pct40  55  -->
+      <!-- 5: 496-620 h210 pct65  90  -->
+      <!-- 6: 620-744 h240 pct0   0   -->
+      <!-- 7(졸업): 744-868 h270 pct100 180 -->
+
+      <!-- baseline -->
+      <line x1="0" y1="280" x2="868" y2="280" stroke="#3a4150" stroke-width="1"/>
+
+      <!-- columns -->
+      <g>
+        <!-- box1 -->
+        <rect x="1" y="190" width="122" height="90" fill="var(--b1)" stroke="#3a4150" stroke-width="1"/>
+        <text x="113" y="206" text-anchor="end" font-family="Space Grotesk, sans-serif" font-weight="700" font-size="12" fill="#fff" stroke="rgba(0,0,0,.4)" stroke-width="2.6" paint-order="stroke fill">1</text>
+
+        <!-- box2 -->
+        <rect x="125" y="160" width="122" height="120" fill="var(--empty)" stroke="#3a4150" stroke-width="1"/>
+        <rect x="125" y="218.8" width="122" height="61.2" fill="var(--b2)"/>
+        <text x="237" y="176" text-anchor="end" font-family="Space Grotesk, sans-serif" font-weight="700" font-size="12" fill="#fff" stroke="rgba(0,0,0,.4)" stroke-width="2.6" paint-order="stroke fill">2</text>
+
+        <!-- box3 -->
+        <rect x="249" y="130" width="122" height="150" fill="var(--empty)" stroke="#3a4150" stroke-width="1"/>
+        <rect x="249" y="164.5" width="122" height="115.5" fill="var(--b3)"/>
+        <text x="361" y="146" text-anchor="end" font-family="Space Grotesk, sans-serif" font-weight="700" font-size="12" fill="#fff" stroke="rgba(0,0,0,.4)" stroke-width="2.6" paint-order="stroke fill">3</text>
+
+        <!-- box4 -->
+        <rect x="373" y="100" width="122" height="180" fill="var(--empty)" stroke="#3a4150" stroke-width="1"/>
+        <rect x="373" y="208" width="122" height="72" fill="var(--b4)"/>
+        <text x="485" y="116" text-anchor="end" font-family="Space Grotesk, sans-serif" font-weight="700" font-size="12" fill="#fff" stroke="rgba(0,0,0,.4)" stroke-width="2.6" paint-order="stroke fill">4</text>
+
+        <!-- box5 -->
+        <rect x="497" y="70" width="122" height="210" fill="var(--empty)" stroke="#3a4150" stroke-width="1"/>
+        <rect x="497" y="143.5" width="122" height="136.5" fill="var(--b5)"/>
+        <text x="609" y="86" text-anchor="end" font-family="Space Grotesk, sans-serif" font-weight="700" font-size="12" fill="#fff" stroke="rgba(0,0,0,.4)" stroke-width="2.6" paint-order="stroke fill">5</text>
+
+        <!-- box6 (empty) -->
+        <rect x="621" y="40" width="122" height="240" fill="none" stroke="var(--b6)" stroke-width="1.5" stroke-dasharray="5 4" opacity=".6"/>
+        <text x="733" y="56" text-anchor="end" font-family="Space Grotesk, sans-serif" font-weight="700" font-size="12" fill="#7c8494">6</text>
+
+        <!-- graduate -->
+        <rect x="745" y="10" width="122" height="270" fill="var(--grad)" stroke="#3a4150" stroke-width="1"/>
+        <text x="857" y="26" text-anchor="end" font-family="Space Grotesk, sans-serif" font-weight="700" font-size="12" fill="#3a2c00">★</text>
+      </g>
+
+      <!-- 카드 수 / % — 바닥 아래, 각 칸 정중앙 -->
+      <g text-anchor="middle">
+        <text x="62"  y="303" font-family="Space Grotesk, sans-serif" font-size="16" font-weight="700" fill="#e7eaf0">138</text>
+        <text x="62"  y="320" font-family="Inter, sans-serif" font-size="11" fill="#8a93a3">100%</text>
+        <text x="186" y="303" font-family="Space Grotesk, sans-serif" font-size="16" font-weight="700" fill="#e7eaf0">71</text>
+        <text x="186" y="320" font-family="Inter, sans-serif" font-size="11" fill="#8a93a3">51%</text>
+        <text x="310" y="303" font-family="Space Grotesk, sans-serif" font-size="16" font-weight="700" fill="#e7eaf0">106</text>
+        <text x="310" y="320" font-family="Inter, sans-serif" font-size="11" fill="#8a93a3">77%</text>
+        <text x="434" y="303" font-family="Space Grotesk, sans-serif" font-size="16" font-weight="700" fill="#e7eaf0">55</text>
+        <text x="434" y="320" font-family="Inter, sans-serif" font-size="11" fill="#8a93a3">40%</text>
+        <text x="558" y="303" font-family="Space Grotesk, sans-serif" font-size="16" font-weight="700" fill="#e7eaf0">90</text>
+        <text x="558" y="320" font-family="Inter, sans-serif" font-size="11" fill="#8a93a3">65%</text>
+        <text x="682" y="303" font-family="Space Grotesk, sans-serif" font-size="16" font-weight="700" fill="#7c8494">0</text>
+        <text x="682" y="320" font-family="Inter, sans-serif" font-size="11" fill="#8a93a3">0%</text>
+        <text x="806" y="303" font-family="Space Grotesk, sans-serif" font-size="16" font-weight="700" fill="#e9b94a">180</text>
+        <text x="806" y="320" font-family="Inter, sans-serif" font-size="11" fill="#8a93a3">마스터</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="legendrow">
+    <div class="lg"><i style="background:var(--b1)"></i>박스1 · 취약/신규 · 138개 (100%)</div>
+    <div class="lg"><i style="background:var(--b2)"></i>박스2 · 71개 (51%)</div>
+    <div class="lg"><i style="background:var(--b3)"></i>박스3 · 106개 (77%)</div>
+    <div class="lg"><i style="background:var(--b4)"></i>박스4 · 55개 (40%)</div>
+    <div class="lg"><i style="background:var(--b5)"></i>박스5 · 90개 (65%)</div>
+    <div class="lg"><i style="border:1.5px dashed var(--b6)"></i>박스6 · 0개 (비어있음)</div>
+    <div class="lg"><i style="background:var(--grad)"></i>졸업 · 180개 마스터</div>
+  </div>
+
+  <div class="foot">
+    <b>03-UXUI.md §3.2</b> 세 번째 안(계단형 바 차트) — 실물 상자를 그대로 그리는 대신, 박스1→졸업으로 갈수록 <b>칸 높이가 계단식으로 커지는
+    막대차트</b>로 단순화했다. 칸 높이 = 그 박스의 상대적 용량(복습 주기가 길수록 큰 칸), 칸 안에서 바닥부터 차오른 색 = 실제 포화도.
+    카드 수는 진하게, %는 바로 아래 흐리게 표기해 칸과 숫자가 짝지어 보이게 했다. <b>박스별 색상 스케일(레드→골드, §1)은 그대로 유지</b> —
+    채운 색이 박스1~6+졸업마다 다르게(빈 칸은 회색+박스6은 점선) 표시돼, 색만으로도 어느 박스인지, 안 채운 부분과 헷갈리지 않는다.
+  </div>
+</body>
+</html>

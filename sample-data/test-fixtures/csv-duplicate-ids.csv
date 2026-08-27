@@ -1,0 +1,4 @@
+id,한글 문장,영어 문장,청크·문법 메모,level,topic,added_at
+t001,나는 매일 아침 커피를 마신다.,I drink coffee every morning.,drink + 명사(관사 없이 일반적 의미),A2,일상,2026-08-25
+t001,이미 존재하는 id를 다시 넣음(무시되어야 함),This row should be skipped because id t001 already exists.,dedupe 확인용 중복 id,A2,일상,2026-08-25
+t201,그는 늦게까지 일했다.,He worked late.,work late(부사),A2,일상,2026-08-25

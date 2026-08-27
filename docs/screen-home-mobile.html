@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>라이트너 · 홈 (Mobile)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f1116; --ink:#e7eaf0; --muted:#8a93a3;
+    --screen:#fbfcfd; --sink:#1b2028; --smut:#8b93a2; --sline:#e8ebef; --panel:#f4f5f8;
+    --primary:#4f46e5; --primary2:#7c72f0; --ok:#16a34a; --no:#dc2626;
+    --b1:#ef4444; --b2:#f97316; --b3:#f59e0b; --b4:#84cc16; --b5:#22c55e; --b6:#14b8a6; --grad:#dca512;
+    --disp:'Space Grotesk',sans-serif; --body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 700px at 20% -10%, #1b2030 0%, transparent 55%), var(--bg);
+    min-height:100vh; display:flex; align-items:flex-start; justify-content:center;
+    padding:48px 20px; font-family:var(--body); -webkit-font-smoothing:antialiased;
+  }
+  .label{position:fixed; top:18px; left:24px; font-family:var(--disp); font-size:11px; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--muted)}
+  .label b{color:var(--ink)}
+
+  .device{width:390px; background:#232833; border-radius:46px; padding:14px;
+    box-shadow:0 40px 90px -30px rgba(0,0,0,.75), inset 0 0 0 1px rgba(255,255,255,.05)}
+  .screen{width:100%; height:844px; background:var(--screen); color:var(--sink);
+    border-radius:34px; overflow:hidden; display:flex; flex-direction:column; position:relative}
+
+  .notch{position:absolute; top:0; left:50%; transform:translateX(-50%); width:120px; height:26px;
+    background:#232833; border-radius:0 0 16px 16px; z-index:5}
+  .statusbar{height:52px; flex:none; display:flex; align-items:flex-end; justify-content:space-between;
+    padding:0 26px 8px; font-family:var(--disp); font-weight:600; font-size:15px; color:var(--sink)}
+  .statusbar .icons{display:flex; gap:5px; align-items:center; font-size:12px; color:var(--sink)}
+
+  .content{flex:1; overflow:hidden; padding:8px 20px 0; display:flex; flex-direction:column; gap:18px}
+
+  .topbar{display:flex; align-items:center; justify-content:space-between}
+  .greet{font-family:var(--disp); font-weight:700; font-size:20px}
+  .greet span{display:block; font-family:var(--body); font-weight:400; font-size:12px; color:var(--smut); margin-top:2px}
+  .badges{display:flex; gap:6px}
+  .badge{display:flex; align-items:center; gap:4px; background:var(--panel); border:1px solid var(--sline);
+    border-radius:999px; padding:6px 11px; font-size:11.5px; font-weight:600}
+  .badge.dday{color:var(--primary)}
+  .badge.streak{color:#e8820c}
+
+  /* box gauge dashboard — 실물 라이트너 상자 메타포 */
+  .boxcard{background:linear-gradient(180deg,#fff,var(--panel)); border:1px solid var(--sline);
+    border-radius:20px; padding:16px 14px 12px}
+  .boxcard .hd{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px}
+  .boxcard .hd h3{font-family:var(--disp); font-size:13.5px; font-weight:700}
+  .boxcard .hd small{font-size:10.5px; color:var(--smut)}
+  .physbox{width:100%; display:block}
+  .physbox .cnt{font-family:var(--disp); font-weight:700; font-size:8px; fill:var(--sink)}
+  .physbox .pctf{font-family:var(--body); font-size:6.3px; fill:var(--smut)}
+  .physbox .boxtag{font-family:var(--disp); font-weight:700; font-size:8px}
+  .physbox .capt{font-size:7.3px; fill:var(--smut)}
+
+  .boxcard .foot{margin-top:10px; padding-top:10px; border-top:1px dashed var(--sline);
+    display:flex; justify-content:space-between; font-size:10.5px; color:var(--smut)}
+  .boxcard .foot b{color:var(--sink); font-weight:600}
+
+  /* CTA */
+  .cta{background:linear-gradient(135deg,var(--primary),var(--primary2)); border-radius:20px; padding:20px;
+    color:#fff; position:relative; overflow:hidden}
+  .cta::after{content:""; position:absolute; right:-30px; top:-30px; width:140px; height:140px; border-radius:50%;
+    background:rgba(255,255,255,.12)}
+  .cta .lbl{font-size:12px; opacity:.85}
+  .cta .num{font-family:var(--disp); font-weight:700; font-size:38px; line-height:1.1; margin:4px 0 14px}
+  .cta .num em{font-style:normal; font-size:15px; font-weight:500; opacity:.8}
+  .cta .btn{background:#fff; color:var(--primary); font-family:var(--disp); font-weight:700; font-size:14.5px;
+    text-align:center; border-radius:13px; padding:13px}
+
+  .summary{display:flex; gap:8px}
+  .sitem{flex:1; background:var(--panel); border:1px solid var(--sline); border-radius:14px; padding:11px; text-align:center}
+  .sitem .v{font-family:var(--disp); font-weight:700; font-size:16.5px}
+  .sitem .l{font-size:9.5px; color:var(--smut); margin-top:2px}
+
+  .tabs{flex:none; height:66px; border-top:1px solid var(--sline); display:flex; background:#fff;
+    padding-bottom:10px}
+  .tabs div{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    font-size:10px; color:var(--smut); font-weight:500}
+  .tabs div.on{color:var(--primary); font-weight:700}
+  .tabs .ic{width:20px; height:20px; border-radius:6px; background:var(--sline)}
+  .tabs div.on .ic{background:var(--primary)}
+
+  .foot-note{max-width:390px; margin-top:22px; color:var(--muted); font-size:12px; line-height:1.7}
+  .foot-note b{color:var(--ink)}
+
+  @media (max-width:460px){
+    .device{width:100%; max-width:390px}
+  }
+</style>
+</head>
+<body>
+  <div class="label">Leitner Vocab · <b>Home / Mobile</b> · 390×844</div>
+  <div>
+    <div class="device">
+      <div class="screen">
+        <div class="notch"></div>
+        <div class="statusbar"><span>9:41</span><span class="icons">▮▮▮ 📶 🔋</span></div>
+
+        <div class="content">
+          <div class="topbar" style="justify-content:flex-end">
+            <div class="badges">
+              <span class="badge dday">D-14</span>
+              <span class="badge streak">🔥 7</span>
+            </div>
+          </div>
+
+          <div class="boxcard">
+            <div class="hd">
+              <h3>내 상자 현황</h3>
+              <small>탭하면 박스별 목록</small>
+            </div>
+            <svg class="physbox" viewBox="0 0 310 184" xmlns="http://www.w3.org/2000/svg">
+              <!-- top/depth faces -->
+              <g opacity=".9">
+                <polygon points="0,94 13,94 23,82 10,82" fill="var(--b1)" fill-opacity=".35"/>
+                <polygon points="13,94 33,94 43,82 23,82" fill="var(--b2)" fill-opacity=".35"/>
+                <polygon points="33,94 63,94 73,82 43,82" fill="var(--b3)" fill-opacity=".35"/>
+                <polygon points="63,94 107,94 117,82 73,82" fill="var(--b4)" fill-opacity=".35"/>
+                <polygon points="107,94 170,94 180,82 117,82" fill="var(--b5)" fill-opacity=".35"/>
+                <polygon points="170,94 233,94 243,82 180,82" fill="var(--b6)" fill-opacity=".35"/>
+                <polygon points="233,94 300,94 310,82 243,82" fill="var(--grad)" fill-opacity=".35"/>
+                <polygon points="300,94 300,174 310,162 310,82" fill="#c7ccd6"/>
+              </g>
+              <!-- front compartments — 카드가 옆으로 쌓이는 실물 방향에 맞춰 좌→우 채움 -->
+              <g font-family="Space Grotesk, sans-serif">
+                <rect x="3" y="97" width="7" height="74" fill="#eef0f4" stroke="var(--sline)"/>
+                <rect x="3" y="97" width="7" height="74" fill="var(--b1)"/>
+                <rect x="16" y="97" width="14" height="74" fill="#eef0f4" stroke="var(--sline)"/>
+                <rect x="16" y="97" width="7.1" height="74" fill="var(--b2)"/>
+                <rect x="36" y="97" width="24" height="74" fill="#eef0f4" stroke="var(--sline)"/>
+                <rect x="36" y="97" width="18.5" height="74" fill="var(--b3)"/>
+                <rect x="66" y="97" width="38" height="74" fill="#eef0f4" stroke="var(--sline)"/>
+                <rect x="66" y="97" width="15.2" height="74" fill="var(--b4)"/>
+                <rect x="110" y="97" width="57" height="74" fill="#eef0f4" stroke="var(--sline)"/>
+                <rect x="110" y="97" width="37" height="74" fill="var(--b5)"/>
+                <rect x="173" y="97" width="57" height="74" fill="none" stroke="#c7ccd6" stroke-width="1.5" stroke-dasharray="4 3"/>
+                <rect x="236" y="97" width="61" height="74" fill="var(--grad)"/>
+              </g>
+              <!-- 박스 번호 — 작은 코너 태그로 (카드 수 숫자와 헷갈리지 않게) -->
+              <g class="boxtag" text-anchor="end" paint-order="stroke fill" stroke="rgba(0,0,0,.38)" stroke-width="2.4" fill="#fff">
+                <text x="9" y="107">1</text>
+                <text x="29" y="107">2</text>
+                <text x="59" y="107">3</text>
+                <text x="103" y="107">4</text>
+                <text x="166" y="107">5</text>
+                <text x="296" y="107">★</text>
+              </g>
+              <text x="229" y="107" text-anchor="end" font-family="Space Grotesk, sans-serif" font-weight="700" font-size="8" fill="var(--smut)">6</text>
+
+              <!-- 카드 수 — 박스 바로 위에 붙여서. 카드 수는 진하게, %는 아래 흐리게 -->
+              <g text-anchor="middle">
+                <text class="cnt" x="6" y="64">138</text><text class="pctf" x="6" y="75">100%</text>
+                <text class="cnt" x="23" y="64">71</text><text class="pctf" x="23" y="75">51%</text>
+                <text class="cnt" x="48" y="64">106</text><text class="pctf" x="48" y="75">77%</text>
+                <text class="cnt" x="85" y="64">55</text><text class="pctf" x="85" y="75">40%</text>
+                <text class="cnt" x="138" y="64">90</text><text class="pctf" x="138" y="75">65%</text>
+                <text class="cnt" x="201" y="64" fill="var(--smut)">0</text><text class="pctf" x="201" y="75">0%</text>
+                <text class="cnt" x="266" y="64" fill="#a3730a">180</text><text class="pctf" x="266" y="75">마스터</text>
+              </g>
+              <text class="capt" x="0" y="182">칸 너비=복습주기(1·2·4·8·16·32일) · 채움(좌→우)=포화도</text>
+            </svg>
+            <div class="foot"><span>총 <b>640</b>문장</span><span>취약(1~2) <b style="color:var(--no)">33%</b></span><span>마스터 <b style="color:#a3730a">28%</b></span></div>
+          </div>
+
+          <div class="cta">
+            <div class="lbl" style="display:flex;justify-content:space-between;align-items:baseline">
+              <span>오늘 복습할 문장</span>
+              <span style="font-size:10.5px;opacity:.85">진행 <b style="opacity:1">8</b>/24</span>
+            </div>
+            <div class="num">24<em> 개</em></div>
+            <div class="btn">학습 시작</div>
+          </div>
+
+          <div class="summary">
+            <div class="sitem"><div class="v">640</div><div class="l">총 단어</div></div>
+            <div class="sitem"><div class="v">180</div><div class="l">마스터</div></div>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <div class="on"><span class="ic"></span>홈</div>
+          <div><span class="ic"></span>단어장</div>
+          <div><span class="ic"></span>통계</div>
+          <div><span class="ic"></span>설정</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot-note">
+      <b>03-UXUI.md §3.2</b> 반영 — 실물 라이트너 상자 메타포로 개선. 칸 너비는 복습 주기(1·2·4·8·16·32일)에 비례해 실제 상자처럼 뒤로 갈수록 넓고,
+      칸 안의 채움 높이는 박스1 개수를 100%로 한 상대 포화도. 박스 6처럼 0개인 칸은 점선 테두리만 남겨 "존재하되 비어있음"을 나타냄.
+    </div>
+  </div>
+</body>
+</html>

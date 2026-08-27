@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>라이트너 영어 암기장 · 화면 플로우</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --canvas:#12141a; --canvas2:#171a21; --ink:#e7eaf0; --muted:#8a93a3; --line:#2b313c;
+    --bezel:#232833; --screen:#fbfcfd; --sink:#1b2028; --smut:#98a0af; --sline:#e8ebef;
+    --primary:#4f46e5; --ok:#16a34a; --no:#dc2626;
+    --b1:#ef4444; --b2:#f97316; --b3:#f59e0b; --b4:#84cc16; --b5:#22c55e; --b6:#14b8a6; --grad:#dca512;
+    --disp:'Space Grotesk',sans-serif; --body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(900px 500px at 15% -5%, #1b2030 0%, transparent 60%),
+      var(--canvas);
+    color:var(--ink); font-family:var(--body); line-height:1.5;
+    padding:40px 28px 80px; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1280px;margin:0 auto}
+
+  /* header */
+  header{margin-bottom:8px}
+  .eyebrow{font-family:var(--disp);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  h1{font-family:var(--disp);font-size:34px;font-weight:700;letter-spacing:-.02em;margin:6px 0 4px}
+  .sub{color:var(--muted);font-size:14.5px;max-width:640px}
+
+  /* legend */
+  .legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:26px 0 34px;
+    padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--canvas2)}
+  .legend .lab{font-family:var(--disp);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .rack{display:flex;gap:5px}
+  .rack .cell{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+    font-family:var(--disp);font-weight:700;font-size:12px;color:#0d0f14}
+  .rack .g{color:#3a2c00}
+  .legend .arrowlab{font-size:12px;color:var(--muted)}
+  .legend .arrowlab b{color:var(--ink);font-weight:600}
+
+  /* act headings */
+  .act{font-family:var(--disp);font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink);margin:30px 0 18px;display:flex;align-items:center;gap:12px}
+  .act .num{width:24px;height:24px;border-radius:7px;background:var(--primary);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:12px}
+  .act .rule{flex:1;height:1px;background:var(--line)}
+
+  /* flow rows */
+  .row{display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap}
+  .conn{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-width:74px;align-self:center;padding:0 2px;gap:6px}
+  .conn .pill{font-size:10.5px;color:var(--ink);background:var(--canvas2);border:1px solid var(--line);
+    border-radius:999px;padding:3px 9px;white-space:nowrap;font-weight:500}
+  .conn .ar{color:#5c6575;font-size:20px;line-height:1}
+
+  /* phone */
+  .unit{display:flex;flex-direction:column;align-items:center;gap:9px;width:212px}
+  .phone{width:212px;height:428px;background:var(--bezel);border-radius:30px;padding:9px;
+    box-shadow:0 18px 40px -18px rgba(0,0,0,.7), inset 0 0 0 1px rgba(255,255,255,.04)}
+  .scr{width:100%;height:100%;background:var(--screen);color:var(--sink);border-radius:22px;
+    overflow:hidden;display:flex;flex-direction:column;font-size:11px}
+  .cap{font-family:var(--disp);font-size:12px;font-weight:600;color:var(--ink);text-align:center}
+  .cap span{display:block;font-family:var(--body);font-weight:400;font-size:10.5px;color:var(--muted);margin-top:1px}
+
+  /* screen chrome + primitives */
+  .bar{height:20px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;color:var(--smut);font-size:9px}
+  .body{flex:1;padding:12px;display:flex;flex-direction:column;gap:9px;overflow:hidden}
+  .h{font-family:var(--disp);font-weight:600;font-size:13px;color:var(--sink)}
+  .h.sm{font-size:11.5px}
+  .ln{height:8px;border-radius:5px;background:var(--sline)}
+  .ln.s{width:55%} .ln.m{width:75%} .ln.l{width:92%}
+  .muted{color:var(--smut)}
+  .chip{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;border:1px solid var(--sline);
+    font-size:9.5px;color:var(--sink);background:#fff}
+  .chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .row2{display:flex;gap:6px;flex-wrap:wrap}
+  .btn{border-radius:10px;padding:9px;text-align:center;font-family:var(--disp);font-weight:600;font-size:11px}
+  .btn.pri{background:var(--primary);color:#fff}
+  .btn.ok{background:var(--ok);color:#fff;flex:1}
+  .btn.no{background:var(--no);color:#fff;flex:1}
+  .btn.ghost{background:#fff;border:1px solid var(--sline);color:var(--sink)}
+  .spacer{flex:1}
+  .tabs{height:40px;border-top:1px solid var(--sline);display:flex;background:#fff}
+  .tabs div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:8px;color:var(--smut)}
+  .tabs div.on{color:var(--primary)}
+  .tabs .ic{width:15px;height:15px;border-radius:5px;background:var(--sline)}
+  .tabs div.on .ic{background:var(--primary)}
+  .cells{display:flex;gap:4px}
+  .cells .c{flex:1;height:34px;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-family:var(--disp);font-weight:700;font-size:11px;color:#0d0f14}
+  .cells .c small{font-weight:500;font-size:8px;opacity:.8}
+  .gauges{display:flex;gap:4px;align-items:flex-end;height:64px}
+  .gauges .g{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+  .gauges .g .tube{width:100%;flex:1;border-radius:5px;background:#eef0f4;border:1px solid var(--sline);
+    display:flex;align-items:flex-end;overflow:hidden;position:relative}
+  .gauges .g .tube.empty{background:transparent}
+  .gauges .g .fill{width:100%;border-radius:4px 4px 0 0}
+  .gauges .g .n{font-family:var(--disp);font-weight:700;font-size:9px;color:var(--sink);margin-top:3px}
+  .gauges .g .pct{font-size:7px;color:var(--smut)}
+  .gauges .g .lbl{font-size:7.5px;color:var(--smut);margin-top:1px}
+  .big{font-family:var(--disp);font-weight:700;font-size:40px;line-height:1;color:var(--sink)}
+  .word{font-family:var(--disp);font-weight:700;font-size:24px;color:var(--sink);text-align:center}
+  .badge{align-self:flex-start;font-size:9px;font-weight:600;color:#0d0f14;padding:2px 7px;border-radius:6px}
+  .prog{height:5px;border-radius:3px;background:var(--sline);overflow:hidden}
+  .prog i{display:block;height:100%;width:34%;background:var(--primary)}
+  .center{align-items:center;justify-content:center;text-align:center}
+  .distbar{height:9px;border-radius:5px;overflow:hidden;display:flex}
+  .distbar i{height:100%}
+  .bars{display:flex;align-items:flex-end;gap:5px;height:70px}
+  .bars i{flex:1;border-radius:4px 4px 0 0}
+  .dot{width:8px;height:8px;border-radius:2px;display:inline-block}
+  .heat{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .heat i{aspect-ratio:1;border-radius:2px;background:var(--sline)}
+  .toggle{width:30px;height:17px;border-radius:999px;background:var(--primary);position:relative;flex:none}
+  .toggle::after{content:"";position:absolute;top:2px;right:2px;width:13px;height:13px;border-radius:50%;background:#fff}
+  .slider{height:5px;border-radius:3px;background:var(--sline);position:relative}
+  .slider::after{content:"";position:absolute;top:-4px;left:60%;width:13px;height:13px;border-radius:50%;background:var(--primary)}
+  .rowbtw{display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+  /* branch note */
+  .branchnote{margin:14px 0 4px;font-size:12px;color:var(--muted)}
+  .branchnote b{color:var(--ink);font-weight:600}
+  .loop{margin-top:2px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .loop .g{color:#7c85f5;font-weight:600}
+
+  .foot{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;max-width:720px}
+  .foot b{color:var(--ink);font-weight:600}
+
+  @media (max-width:760px){
+    .conn{min-width:0;width:100%;flex-direction:row;gap:8px;padding:4px 0}
+    .conn .ar{transform:rotate(90deg)}
+    .unit{width:100%;max-width:280px}
+    .phone{width:100%;max-width:280px}
+    .row{justify-content:center}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Leitner Vocab · Android</div>
+    <h1>화면 플로우 맵</h1>
+    <p class="sub">토익·토플 대비 라이트너 <b>문장</b> 암기장 — 한글을 보고 영어 문장을 떠올리는 생산 학습. 박스 색상 스케일(레드→골드)이 진척도의 공통 언어로 전 화면에 흐른다.</p>
+  </header>
+
+  <div class="legend">
+    <span class="lab">Box Scale</span>
+    <div class="rack">
+      <div class="cell" style="background:var(--b1)">1</div>
+      <div class="cell" style="background:var(--b2)">2</div>
+      <div class="cell" style="background:var(--b3)">3</div>
+      <div class="cell" style="background:var(--b4)">4</div>
+      <div class="cell" style="background:var(--b5)">5</div>
+      <div class="cell" style="background:var(--b6)">6</div>
+      <div class="cell g" style="background:var(--grad)">★</div>
+    </div>
+    <span class="arrowlab"><b>박스1(취약)</b> → 자주 복습 &nbsp;·&nbsp; <b>박스6·★(마스터)</b> → 뜸하게/제외</span>
+  </div>
+
+  <!-- ACT 1 -->
+  <div class="act"><span class="num">1</span> 진입 &amp; 핵심 학습 루프 <span class="rule"></span></div>
+  <div class="row">
+
+    <!-- Onboarding -->
+    <div class="unit">
+      <div class="phone"><div class="scr">
+        <div class="bar"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="body center" style="gap:14px">
+          <div class="row2" style="justify-content:center;gap:6px">
+            <span class="dot" style="background:var(--primary)"></span>
+            <span class="dot" style="background:var(--sline)"></span>
+            <span class="dot" style="background:var(--sline)"></span>
+          </div>
+          <div class="h" style="font-size:15px;line-height:1.35">아는 문장은 뜸하게,<br>모르는 문장은 자주.</div>
+          <p class="muted" style="font-size:10px">라이트너 상자 학습법</p>
+          <div class="row2" style="justify-content:center">
+            <span class="chip on">토익</span><span class="chip">토플</span>
+          </div>
+          <div class="spacer"></div>
+          <div class="btn pri" style="width:100%">시작하기</div>
+        </div>
+      </div></div>
+      <div class="cap">온보딩<span>목적·D-day·스타터 덱</span></div>
+    </div>
+
+    <div class="conn"><span class="pill">온보딩 완료</span><span class="ar">→</span></div>
+
+    <!-- Home -->
+    <div class="unit">
+      <div class="phone"><div class="scr">
+        <div class="bar"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="body" style="gap:10px">
+          <div class="rowbtw" style="justify-content:flex-end">
+            <div style="display:flex;gap:5px">
+              <span class="chip" style="padding:2px 7px">D-14</span>
+              <span class="chip" style="padding:2px 7px">🔥 7</span>
+            </div>
+          </div>
+          <div class="gauges">
+            <div class="g" style="flex:22 22 0"><div class="tube"><div class="fill" style="height:78%;background:var(--b1)"></div></div><div class="n">138</div><div class="pct">22%</div><div class="lbl">1</div></div>
+            <div class="g" style="flex:11 11 0"><div class="tube"><div class="fill" style="height:39%;background:var(--b2)"></div></div><div class="n">71</div><div class="pct">11%</div><div class="lbl">2</div></div>
+            <div class="g" style="flex:17 17 0"><div class="tube"><div class="fill" style="height:61%;background:var(--b3)"></div></div><div class="n">106</div><div class="pct">17%</div><div class="lbl">3</div></div>
+            <div class="g" style="flex:9 9 0"><div class="tube"><div class="fill" style="height:32%;background:var(--b4)"></div></div><div class="n">55</div><div class="pct">9%</div><div class="lbl">4</div></div>
+            <div class="g" style="flex:14 14 0"><div class="tube"><div class="fill" style="height:50%;background:var(--b5)"></div></div><div class="n">90</div><div class="pct">14%</div><div class="lbl">5</div></div>
+            <div class="g" style="flex:5 5 0"><div class="tube empty"></div><div class="n">0</div><div class="pct">0%</div><div class="lbl">6</div></div>
+            <div class="g" style="flex:28 28 0"><div class="tube"><div class="fill" style="height:100%;background:var(--grad)"></div></div><div class="n">180</div><div class="pct">28%</div><div class="lbl">★</div></div>
+          </div>
+          <div style="margin-top:4px">
+            <div class="muted" style="font-size:10px">오늘 복습할 문장</div>
+            <div class="big">24<span style="font-size:14px;color:var(--smut)"> 개</span></div>
+          </div>
+          <div class="btn pri" style="width:100%">학습 시작</div>
+          <div class="spacer"></div>
+          <div class="rowbtw muted" style="font-size:9px">
+            <span>총 640</span><span>마스터 180</span><span>오늘 8/25</span>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="on"><span class="ic"></span>홈</div>
+          <div><span class="ic"></span>단어장</div>
+          <div><span class="ic"></span>통계</div>
+          <div><span class="ic"></span>설정</div>
+        </div>
+      </div></div>
+      <div class="cap">홈 · 상자 대시보드<span>메인 허브 (§3.2)</span></div>
+    </div>
+
+    <div class="conn"><span class="pill">학습 시작</span><span class="ar">→</span></div>
+
+    <!-- Study: 제시(한글) + 힌트 -->
+    <div class="unit">
+      <div class="phone"><div class="scr">
+        <div class="bar"><span>✕</span><span class="badge" style="background:var(--b3)">박스 3</span></div>
+        <div class="body" style="gap:9px">
+          <div class="prog"><i></i></div>
+          <div class="muted" style="font-size:9px">12 / 24</div>
+          <div class="spacer"></div>
+          <div class="h" style="font-size:15px;line-height:1.5">스마트폰은 어디에나 있다.</div>
+          <div style="background:#f4f5f8;border-radius:8px;padding:9px;font-family:var(--disp);font-size:13px;letter-spacing:.06em;color:var(--sink)">Smartphones _ _.</div>
+          <span class="chip" style="align-self:flex-start;border-color:var(--ok);color:var(--ok)">힌트 1/3 · 영향 없음</span>
+          <div class="spacer"></div>
+          <div class="row2">
+            <div class="btn ghost" style="flex:0 0 32%">힌트</div>
+            <div class="btn pri" style="flex:1">정답 확인</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">학습 · 제시 + 힌트<span>한글 → 영어 생산</span></div>
+    </div>
+
+    <div class="conn"><span class="pill">정답 확인 · 플립</span><span class="ar">→</span></div>
+
+    <!-- Study: 정답 확인 -->
+    <div class="unit">
+      <div class="phone"><div class="scr">
+        <div class="bar"><span>✕</span><span class="badge" style="background:var(--b3)">박스 3</span></div>
+        <div class="body" style="gap:9px">
+          <div class="prog"><i></i></div>
+          <div class="muted" style="font-size:9px">12 / 24 · 🔊 자동재생</div>
+          <div class="muted" style="font-size:9px;margin-top:4px">스마트폰은 어디에나 있다.</div>
+          <div class="h" style="font-size:15px;line-height:1.5">Smartphones are <span style="color:var(--primary)">ubiquitous</span>.</div>
+          <div style="background:#f4f5f8;border-radius:8px;padding:8px;font-size:9px;line-height:1.6">
+            <span class="muted">청크</span> Smartphones · are · ubiquitous<br>
+            <span class="muted">ubiquitous</span> 어디에나 있는, 아주 흔한
+          </div>
+          <div class="spacer"></div>
+          <div class="row2">
+            <div class="btn no">몰랐어</div>
+            <div class="btn ok">알았어</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">학습 · 정답 확인<span>발음 + 자기 채점 (§3.3)</span></div>
+    </div>
+
+    <div class="conn"><span class="pill">큐 완료</span><span class="ar">→</span></div>
+
+    <!-- Summary -->
+    <div class="unit">
+      <div class="phone"><div class="scr">
+        <div class="bar"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="body center" style="gap:12px">
+          <div class="big" style="font-size:30px">🎉</div>
+          <div class="h">오늘 복습 끝!</div>
+          <div class="row2" style="justify-content:center;gap:8px">
+            <span class="chip">정답률 86%</span>
+            <span class="chip">🔥 8일</span>
+          </div>
+          <div class="row2" style="justify-content:center;gap:6px;font-size:9px">
+            <span class="chip" style="border-color:var(--ok);color:var(--ok)">↑ 24 승급</span>
+            <span class="chip" style="border-color:var(--no);color:var(--no)">↓ 6 강등</span>
+            <span class="chip">신규 5</span>
+          </div>
+          <div class="spacer"></div>
+          <div class="btn pri" style="width:100%">홈으로</div>
+          <div class="btn ghost" style="width:100%">계속 학습</div>
+        </div>
+      </div></div>
+      <div class="cap">세션 요약<span>성취 피드백</span></div>
+    </div>
+  </div>
+
+  <div class="loop"><span class="g">↺</span> 카드마다 <b style="color:var(--ink)">알았어 → 다음 박스 승급</b> / <b style="color:var(--ink)">몰랐어 → 박스1 강등 + 세션 끝 1회 재노출</b>. <b style="color:var(--ink)">힌트 레벨 2↑ 사용 시 자동 오답</b>([알았어] 비활성). 큐가 빌 때까지 반복.</div>
+
+  <!-- ACT 2 -->
+  <div class="act"><span class="num">2</span> 하단 탭 목적지 <span class="rule"></span></div>
+  <p class="branchnote">홈 하단 탭에서 분기 → <b>단어장 · 통계 · 설정</b>. 통계의 취약 문장에서 학습 세션으로 되돌아가는 지름길도 있다.</p>
+  <div class="row">
+
+    <!-- Decks -->
+    <div class="unit">
+      <div class="phone"><div class="scr">
+        <div class="bar"><span>단어장</span><span>＋</span></div>
+        <div class="body" style="gap:9px">
+          <div class="row2"><span class="chip on">＋ 단어장</span><span class="chip">CSV 가져오기</span></div>
+          <div style="border:1px solid var(--sline);border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:6px">
+            <div class="rowbtw"><span class="h sm">토익 필수 800</span><span class="muted" style="font-size:9px">D-14</span></div>
+            <div class="distbar">
+              <i style="background:var(--b1);width:20%"></i><i style="background:var(--b2);width:12%"></i>
+              <i style="background:var(--b3);width:18%"></i><i style="background:var(--b4);width:14%"></i>
+              <i style="background:var(--b5);width:16%"></i><i style="background:var(--b6);width:20%"></i>
+            </div>
+            <span class="muted" style="font-size:9px">812 문장</span>
+          </div>
+          <div style="border:1px solid var(--sline);border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:6px">
+            <div class="rowbtw"><span class="h sm">토플 아카데믹</span><span class="muted" style="font-size:9px">—</span></div>
+            <div class="distbar">
+              <i style="background:var(--b1);width:34%"></i><i style="background:var(--b2);width:22%"></i>
+              <i style="background:var(--b3);width:18%"></i><i style="background:var(--b4);width:12%"></i>
+              <i style="background:var(--b5);width:8%"></i><i style="background:var(--b6);width:6%"></i>
+            </div>
+            <span class="muted" style="font-size:9px">428 문장</span>
+          </div>
+        </div>
+        <div class="tabs">
+          <div><span class="ic"></span>홈</div><div class="on"><span class="ic"></span>단어장</div>
+          <div><span class="ic"></span>통계</div><div><span class="ic"></span>설정</div>
+        </div>
+      </div></div>
+      <div class="cap">단어장 목록<span>덱 관리 (§3.4)</span></div>
+    </div>
+
+    <div class="conn"><span class="pill">덱 선택</span><span class="ar">→</span></div>
+
+    <!-- Deck detail -->
+    <div class="unit">
+      <div class="phone"><div class="scr">
+        <div class="bar"><span>← 토익 필수 800</span><span>🔍</span></div>
+        <div class="body" style="gap:8px">
+          <div class="row2">
+            <span class="chip on">전체</span><span class="chip">박스별</span>
+            <span class="chip">취약</span><span class="chip">졸업</span>
+          </div>
+          <div class="rowbtw"><span class="dot" style="background:var(--b1)"></span><span class="ln m"></span></div>
+          <div class="rowbtw"><span class="dot" style="background:var(--b3)"></span><span class="ln l"></span></div>
+          <div class="rowbtw"><span class="dot" style="background:var(--b2)"></span><span class="ln s"></span></div>
+          <div class="rowbtw"><span class="dot" style="background:var(--b6)"></span><span class="ln m"></span></div>
+          <div class="rowbtw"><span class="dot" style="background:var(--b1)"></span><span class="ln l"></span></div>
+          <div class="rowbtw"><span class="dot" style="background:var(--b5)"></span><span class="ln s"></span></div>
+          <div class="rowbtw"><span class="dot" style="background:var(--b4)"></span><span class="ln m"></span></div>
+          <div class="spacer"></div>
+          <div class="btn pri" style="width:100%">＋ 카드 추가</div>
+        </div>
+      </div></div>
+      <div class="cap">덱 상세 · 카드 목록<span>검색 · 필터</span></div>
+    </div>
+
+    <div class="conn"><span class="pill">추가 / 편집</span><span class="ar">→</span></div>
+
+    <!-- Card edit -->
+    <div class="unit">
+      <div class="phone"><div class="scr">
+        <div class="bar"><span>← 카드 편집</span><span>저장</span></div>
+        <div class="body" style="gap:11px">
+          <div><div class="muted" style="font-size:9px;margin-bottom:4px">한글 문장 (제시)</div><div class="ln l" style="height:38px;border-radius:8px"></div></div>
+          <div><div class="muted" style="font-size:9px;margin-bottom:4px">영어 문장 (정답)</div><div class="ln l" style="height:38px;border-radius:8px"></div></div>
+          <div><div class="muted" style="font-size:9px;margin-bottom:4px">청크·문법 메모 (선택)</div><div class="ln l" style="height:26px;border-radius:8px"></div></div>
+          <div class="row2" style="align-items:center;gap:6px"><span class="chip" style="font-size:9px">🔊 자동 TTS</span><span class="chip" style="font-size:9px">청크 지정</span></div>
+          <div class="spacer"></div>
+          <div class="row2" style="align-items:center"><span class="toggle"></span><span class="muted" style="font-size:9.5px">저장 후 계속 추가</span></div>
+        </div>
+      </div></div>
+      <div class="cap">카드 추가 · 편집<span>한글·영어·메모</span></div>
+    </div>
+
+    <div class="conn"><span class="pill">탭: 통계</span><span class="ar">→</span></div>
+
+    <!-- Stats -->
+    <div class="unit">
+      <div class="phone"><div class="scr">
+        <div class="bar"><span>통계</span><span></span></div>
+        <div class="body" style="gap:10px">
+          <div class="h sm">박스 분포</div>
+          <div class="bars">
+            <i style="height:60%;background:var(--b1)"></i><i style="height:35%;background:var(--b2)"></i>
+            <i style="height:48%;background:var(--b3)"></i><i style="height:40%;background:var(--b4)"></i>
+            <i style="height:70%;background:var(--b5)"></i><i style="height:90%;background:var(--b6)"></i>
+          </div>
+          <div class="h sm">연속 학습</div>
+          <div class="heat">
+            <i style="background:var(--b5)"></i><i style="background:var(--b6)"></i><i></i><i style="background:var(--b4)"></i><i style="background:var(--b5)"></i><i style="background:var(--b6)"></i><i style="background:var(--b6)"></i>
+            <i style="background:var(--b3)"></i><i style="background:var(--b5)"></i><i style="background:var(--b6)"></i><i style="background:var(--b6)"></i><i></i><i style="background:var(--b5)"></i><i style="background:var(--b6)"></i>
+          </div>
+          <div class="spacer"></div>
+          <div style="background:#fdf2f2;border-radius:8px;padding:8px" class="rowbtw">
+            <span style="font-size:9.5px;color:var(--no);font-weight:600">취약 문장 12</span>
+            <span class="chip" style="border-color:var(--no);color:var(--no)">집중 세션 →</span>
+          </div>
+        </div>
+        <div class="tabs">
+          <div><span class="ic"></span>홈</div><div><span class="ic"></span>단어장</div>
+          <div class="on"><span class="ic"></span>통계</div><div><span class="ic"></span>설정</div>
+        </div>
+      </div></div>
+      <div class="cap">통계<span>진척 · 취약 문장 (§3.5)</span></div>
+    </div>
+
+    <div class="conn"><span class="pill">탭: 설정</span><span class="ar">→</span></div>
+
+    <!-- Settings -->
+    <div class="unit">
+      <div class="phone"><div class="scr">
+        <div class="bar"><span>설정</span><span></span></div>
+        <div class="body" style="gap:12px">
+          <div class="h sm">학습량</div>
+          <div><div class="rowbtw muted" style="font-size:9px"><span>하루 목표</span><span>50</span></div><div class="slider"></div></div>
+          <div><div class="rowbtw muted" style="font-size:9px"><span>신규 도입</span><span>15</span></div><div class="slider" style="margin-top:4px"></div></div>
+          <div class="h sm" style="margin-top:2px">복습 주기</div>
+          <div class="row2"><span class="chip on">표준</span><span class="chip">속성 4칸</span></div>
+          <div class="rowbtw"><span style="font-size:10px">오답 처리 · 완화</span><span class="toggle"></span></div>
+          <div class="rowbtw"><span style="font-size:10px">D-day 주기 압축</span><span class="toggle"></span></div>
+          <div class="spacer"></div>
+          <div class="muted" style="font-size:9px">알림 · 다크모드 · 내보내기</div>
+        </div>
+        <div class="tabs">
+          <div><span class="ic"></span>홈</div><div><span class="ic"></span>단어장</div>
+          <div><span class="ic"></span>통계</div><div class="on"><span class="ic"></span>설정</div>
+        </div>
+      </div></div>
+      <div class="cap">설정<span>파라미터·모드 (§3.6)</span></div>
+    </div>
+  </div>
+
+  <div class="loop"><span class="g">↺</span> 통계 → <b style="color:var(--ink)">취약 문장 집중 세션</b>은 학습 화면(ACT 1)으로 진입하는 지름길</div>
+
+  <div class="foot">
+    이 플로우는 <b>UXUI.md §2 내비게이션</b>과 <b>§3 화면별 설계</b>를 시각화한 것. 각 목업 캡션의 §번호로 상세 스펙과 대조할 수 있어.
+    구현 순서는 <b>학습 세션 → 홈 → 단어장 → 세션 요약 → 통계</b> 권장.
+  </div>
+</div>
+</body>
+</html>
