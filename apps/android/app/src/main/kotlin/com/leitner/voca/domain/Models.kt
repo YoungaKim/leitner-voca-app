@@ -70,6 +70,7 @@ data class Settings(
     val autoSyncEnabled: Boolean = false, // 2d
     val refillThresholdDays: Int = 3,
     val ttsAutoPlay: Boolean = false,
+    val preferredAiModel: String = "claude", // DESIGN §6 '선생님한테 질문' 모델(claude|gemini|gpt)
     val updatedAt: String? = null, // 2c 클라우드 동기화 LWW 기준(DESIGN §3.7).
 ) {
     companion object {
@@ -90,4 +91,5 @@ data class SyncState(
 }
 
 const val GRADUATED_BOX = 7
+const val NEW_CARD_BOX = 0 // DESIGN §1.3b — 신규 도입 직후, 복습 기한 없음(항상 due)
 const val LEECH_LAPSE_THRESHOLD = 5

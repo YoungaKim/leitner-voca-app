@@ -26,14 +26,6 @@ const HINT_LADDER = [
   "대부분 공개, 빈칸 1~2개",
 ];
 
-// 브라우저에 IME 언어를 강제 전환하는 표준 API가 없어서, 대신 한글 입력을 즉시 걸러낸다
-// (완성 음절 + 자모 낱자 범위를 모두 제거) — 사용자가 한/영 전환을 안 해도 입력창엔 한글이 남지 않는다.
-function filterOutKorean(text: string): string {
-  // 한글 자모(조합 중) + 완성 음절 범위를 모두 제거: Jamo(ᄀ-ᇿ), 호환 자모(㄰-㆏),
-  // Jamo 확장 A(ꥠ-꥿)/B(ힰ-퟿), 완성형 음절(가-힣).
-  return text.replace(/[ᄀ-ᇿ㄰-㆏ꥠ-꥿ힰ-퟿가-힣]/g, "");
-}
-
 function buildHintText(answerEn: string, level: number): string {
   const words = answerEn.split(" ");
   if (level === 0) return "";
@@ -60,7 +52,7 @@ export default function StudySessionPage() {
 
   // 세션 시작 시점의 오늘 큐를 한 번만 계산해서 고정한다(§1.4). 이후 답변으로
   // cards가 바뀌어도 세션 도중 큐 자체가 다시 섞이지 않도록 useMemo에 담는다.
-  const { due: dueCards, newFromPool } = useMemo(
+  const { due: dueCards, leftoverNew, newFromPool } = useMemo(
     () => buildTodayQueue(cardsInStore, newPoolInStore, settings, todayStr()),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -109,7 +101,8 @@ export default function StudySessionPage() {
         await introduceCard(card, pool.id);
         introduced.push(card);
       }
-      if (!cancelled) setQueue([...dueCards, ...introduced]);
+      // 복습(박스1~6) → 박스0 잔류 신규 → 이번 세션 신규 도입 순.
+      if (!cancelled) setQueue([...dueCards, ...leftoverNew, ...introduced]);
     })();
     return () => {
       cancelled = true;
@@ -198,7 +191,7 @@ export default function StudySessionPage() {
           <li>정답률: {t.studied > 0 ? Math.round((t.correct / t.studied) * 100) : 0}%</li>
           <li>박스 승급: {t.boxUp}개</li>
           <li>박스 강등: {t.boxDown}개</li>
-          <li>신규 도입: {newFromPool.length}개</li>
+          <li>신규 도입: {newFromPool.length + leftoverNew.length}개</li>
         </ul>
         <Link className="btn primary" to="/">
           홈으로
@@ -304,7 +297,7 @@ export default function StudySessionPage() {
               ref={textInputRef}
               placeholder="영어로 답을 입력해보세요 (선택)"
               value={userText}
-              onChange={(e) => setUserText(filterOutKorean(e.target.value))}
+              onChange={(e) => setUserText(e.target.value)}
               lang="en"
               inputMode="text"
               autoCapitalize="off"

@@ -3,6 +3,7 @@ package com.leitner.voca.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.leitner.voca.data.AppRepository
+import com.leitner.voca.data.AskTeacherContext
 import com.leitner.voca.domain.Card
 import com.leitner.voca.domain.Deck
 import com.leitner.voca.domain.NewPoolItem
@@ -52,6 +53,16 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
     fun introduceCard(card: Card, poolId: String) = viewModelScope.launch { repo.introduceCard(card, poolId) }
 
     fun updateSettings(settings: Settings) = viewModelScope.launch { repo.updateSettings(settings) }
+
+    /** DESIGN §6 '선생님한테 질문' — 결과(성공 답변/실패 사유)를 콜백으로 화면에 전달. */
+    fun askTeacher(
+        model: String,
+        question: String,
+        context: AskTeacherContext,
+        onResult: (Result<String>) -> Unit,
+    ) = viewModelScope.launch {
+        onResult(runCatching { repo.askTeacher(model, question, context) })
+    }
 
     /** 2d — "지금 동기화". 결과는 콜백으로 화면에 전달(성공/오류 메시지 표시용, PC 웹의
      * contentSyncing/contentSyncErrors 상태와 동일 역할을 화면 쪽 로컬 상태로 대신한다). */

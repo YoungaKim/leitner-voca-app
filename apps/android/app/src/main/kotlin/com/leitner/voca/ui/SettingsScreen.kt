@@ -118,6 +118,36 @@ fun SettingsScreen(
         }
 
         Spacer(Modifier.height(24.dp))
+        Text("학습 보조", style = MaterialTheme.typography.titleMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = settings.ttsAutoPlay,
+                onCheckedChange = { onUpdateSettings(settings.copy(ttsAutoPlay = it)) },
+            )
+            Text("정답 공개 시 영어 발음 자동 재생(듣기)")
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("선생님한테 질문에 쓸 AI 모델", style = MaterialTheme.typography.bodyMedium)
+        var aiMenuOpen by remember { mutableStateOf(false) }
+        val aiModels = listOf("claude" to "Claude", "gemini" to "Gemini", "gpt" to "GPT")
+        Column {
+            OutlinedButton(onClick = { aiMenuOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(aiModels.find { it.first == settings.preferredAiModel }?.second ?: "Claude")
+            }
+            DropdownMenu(expanded = aiMenuOpen, onDismissRequest = { aiMenuOpen = false }) {
+                aiModels.forEach { (value, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            onUpdateSettings(settings.copy(preferredAiModel = value))
+                            aiMenuOpen = false
+                        },
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
         Text("학습량", style = MaterialTheme.typography.titleMedium)
         SettingsNumberField("하루 목표(dailyGoal)", settings.dailyGoal) { onUpdateSettings(settings.copy(dailyGoal = it)) }
         SettingsNumberField("복습 상한(reviewCap)", settings.reviewCap) { onUpdateSettings(settings.copy(reviewCap = it)) }

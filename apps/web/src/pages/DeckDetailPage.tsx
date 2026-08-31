@@ -3,9 +3,10 @@
 // 화면, 2d)로 단일화. 이 화면엔 "설정으로 가서 시트 동기화" 안내만 남긴다.
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import type { Card } from "@leitner/core";
 import { useAppStore } from "../store";
 
-const BOX_LABEL = ["", "1", "2", "3", "4", "5", "6", "졸업"];
+const BOX_LABEL = ["신규", "1", "2", "3", "4", "5", "6", "졸업"];
 
 export default function DeckDetailPage() {
   const { deckId } = useParams<{ deckId: string }>();
@@ -19,6 +20,30 @@ export default function DeckDetailPage() {
   const newPool = useMemo(() => allNewPool.filter((p) => p.deckId === deckId), [allNewPool, deckId]);
   const addCard = useAppStore((s) => s.addCard);
   const deleteCard = useAppStore((s) => s.deleteCard);
+  const updateCard = useAppStore((s) => s.updateCard);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editPromptKo, setEditPromptKo] = useState("");
+  const [editAnswerEn, setEditAnswerEn] = useState("");
+  const [editChunkNote, setEditChunkNote] = useState("");
+
+  function startEdit(c: Card) {
+    setEditingId(c.id);
+    setEditPromptKo(c.promptKo);
+    setEditAnswerEn(c.answerEn);
+    setEditChunkNote(c.chunkNote ?? "");
+  }
+
+  async function handleSaveEdit(c: Card) {
+    if (!editPromptKo.trim() || !editAnswerEn.trim()) return;
+    await updateCard({
+      ...c,
+      promptKo: editPromptKo.trim(),
+      answerEn: editAnswerEn.trim(),
+      chunkNote: editChunkNote.trim() || undefined,
+    });
+    setEditingId(null);
+  }
 
   const [search, setSearch] = useState("");
   const [boxFilter, setBoxFilter] = useState<string>("전체");
@@ -66,18 +91,66 @@ export default function DeckDetailPage() {
       </div>
 
       <ul className="card-list">
-        {filtered.map((c) => (
-          <li key={c.id}>
-            <span className="card-text">
-              <span className="card-en">{c.answerEn}</span>
-              <span className="card-ko muted">{c.promptKo}</span>
-            </span>
-            <span className="box-dot">박스 {BOX_LABEL[c.box]}</span>
-            <button className="btn card-delete" onClick={() => deleteCard(c.id)}>
-              삭제
-            </button>
-          </li>
-        ))}
+        {filtered.map((c) =>
+          editingId === c.id ? (
+            <li key={c.id}>
+              <form
+                className="card-form card-edit-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSaveEdit(c);
+                }}
+              >
+                <input
+                  placeholder="한글 문장(제시)"
+                  value={editPromptKo}
+                  onChange={(e) => setEditPromptKo(e.target.value)}
+                  required
+                />
+                <input
+                  placeholder="영어 문장(정답)"
+                  value={editAnswerEn}
+                  onChange={(e) => setEditAnswerEn(e.target.value)}
+                  required
+                />
+                <input
+                  placeholder="청크·문법 메모(선택)"
+                  value={editChunkNote}
+                  onChange={(e) => setEditChunkNote(e.target.value)}
+                />
+                <div className="card-edit-actions">
+                  <button
+                    className="btn primary"
+                    type="submit"
+                    disabled={!editPromptKo.trim() || !editAnswerEn.trim()}
+                  >
+                    저장
+                  </button>
+                  <button className="btn" type="button" onClick={() => setEditingId(null)}>
+                    취소
+                  </button>
+                </div>
+              </form>
+            </li>
+          ) : (
+            <li key={c.id}>
+              <span className="card-text">
+                <span className="card-en">{c.answerEn}</span>
+                <span className="card-ko muted">{c.promptKo}</span>
+                {c.chunkNote && <span className="card-note muted">{c.chunkNote}</span>}
+              </span>
+              <span className="box-dot">
+                {c.box === 0 || c.box === 7 ? BOX_LABEL[c.box] : `박스 ${BOX_LABEL[c.box]}`}
+              </span>
+              <button className="btn card-delete" onClick={() => startEdit(c)}>
+                수정
+              </button>
+              <button className="btn card-delete" onClick={() => deleteCard(c.id)}>
+                삭제
+              </button>
+            </li>
+          )
+        )}
         {filtered.length === 0 && <li className="muted">카드가 없습니다.</li>}
       </ul>
 

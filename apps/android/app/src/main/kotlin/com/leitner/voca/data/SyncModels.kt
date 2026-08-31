@@ -88,6 +88,7 @@ data class SettingsRow(
     @SerialName("auto_sync_enabled") val autoSyncEnabled: Boolean = false,
     @SerialName("refill_threshold_days") val refillThresholdDays: Int,
     @SerialName("tts_auto_play") val ttsAutoPlay: Boolean,
+    @SerialName("preferred_ai_model") val preferredAiModel: String = "claude",
     @SerialName("updated_at") val updatedAt: String? = null,
 )
 
@@ -97,13 +98,14 @@ fun Settings.toRow(userId: String) = SettingsRow(
     userId, intervals, dailyGoal, reviewCap, newCap, maxActiveCards,
     if (lapseMode == LapseMode.SOFT) "soft" else "reset",
     hintFreeLevel, notifyTime, recoveryEase, contentSourceUrl, autoSyncEnabled, refillThresholdDays, ttsAutoPlay,
+    preferredAiModel,
     updatedAt ?: java.time.Instant.now().toString(),
 )
 fun SettingsRow.toDomain(existingContentSourceDeckId: String? = null) = Settings(
     intervals, dailyGoal, reviewCap, newCap, maxActiveCards,
     if (lapseMode == "soft") LapseMode.SOFT else LapseMode.RESET,
     hintFreeLevel, notifyTime, recoveryEase, contentSourceUrl, existingContentSourceDeckId, autoSyncEnabled,
-    refillThresholdDays, ttsAutoPlay, updatedAt,
+    refillThresholdDays, ttsAutoPlay, preferredAiModel, updatedAt,
 )
 
 @Serializable

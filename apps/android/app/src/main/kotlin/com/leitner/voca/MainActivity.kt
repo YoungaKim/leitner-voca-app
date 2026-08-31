@@ -95,6 +95,7 @@ private fun AuthenticatedApp(app: VocaApplication, onSignOut: () -> Unit) {
                     state = state,
                     onStartSession = { navController.navigate("session") },
                     onGoDecks = { navController.navigate("decks") },
+                    onOpenSettings = { navController.navigate("settings") },
                 )
             }
             composable("decks") {
@@ -127,6 +128,7 @@ private fun AuthenticatedApp(app: VocaApplication, onSignOut: () -> Unit) {
                     state = state,
                     onApplyReview = viewModel::applyReview,
                     onIntroduce = viewModel::introduceCard,
+                    onAskTeacher = viewModel::askTeacher,
                     onClose = { navController.popBackStack("home", inclusive = false) },
                 )
             }

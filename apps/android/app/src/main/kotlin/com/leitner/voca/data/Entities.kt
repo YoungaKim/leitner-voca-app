@@ -111,6 +111,7 @@ data class SettingsEntity(
     val autoSyncEnabled: Boolean,
     val refillThresholdDays: Int,
     val ttsAutoPlay: Boolean,
+    val preferredAiModel: String = "claude",
     val updatedAt: String?,
 )
 
@@ -118,7 +119,7 @@ fun SettingsEntity.toDomain() = Settings(
     intervals, dailyGoal, reviewCap, newCap, maxActiveCards,
     if (lapseMode == "soft") LapseMode.SOFT else LapseMode.RESET,
     hintFreeLevel, notifyTime, recoveryEase, contentSourceUrl, contentSourceDeckId, autoSyncEnabled,
-    refillThresholdDays, ttsAutoPlay, updatedAt,
+    refillThresholdDays, ttsAutoPlay, preferredAiModel, updatedAt,
 )
 fun Settings.toEntity() = SettingsEntity(
     id = 0,
@@ -137,6 +138,7 @@ fun Settings.toEntity() = SettingsEntity(
     updatedAt = updatedAt,
     refillThresholdDays = refillThresholdDays,
     ttsAutoPlay = ttsAutoPlay,
+    preferredAiModel = preferredAiModel,
 )
 
 /** 2d — 콘텐츠 동기화 상태. Settings와 마찬가지로 단일 행(id 고정)으로 저장. */

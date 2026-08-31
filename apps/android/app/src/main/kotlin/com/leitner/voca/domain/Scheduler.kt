@@ -45,8 +45,17 @@ fun applyExamCompression(box: Int, intervals: List<Int>, daysUntilExam: Int): In
     return minOf(base, maxOf(1, daysUntilExam / 2))
 }
 
-/** DESIGN §1.4 오늘의 복습 큐 — 복습 카드(정렬·상한 적용) + 저수지에서 끌어올 신규 후보. */
-data class TodayQueue(val due: List<Card>, val newFromPool: List<NewPoolItem>)
+/** DESIGN §1.4 오늘의 복습 큐.
+ * 출제 순서: due(복습, 박스1~6) → leftoverNew(박스0 잔류 신규) → newFromPool(이번 세션 신규 도입).
+ * 신규 카드는 "처음 보는 것"이므로 복습이 끝난 뒤에 배치한다. 지난 세션에 채점을 못 끝내
+ * 박스0으로 남은 카드도 마찬가지로 복습 뒤·신규 도입 앞에 둔다(박스 번호로 정렬하면
+ * 박스0이 박스1보다 앞서 나오는 문제를 막기 위함).
+ */
+data class TodayQueue(
+    val due: List<Card>,
+    val leftoverNew: List<Card>,
+    val newFromPool: List<NewPoolItem>,
+)
 
 fun buildTodayQueue(
     cards: List<Card>,
@@ -54,8 +63,10 @@ fun buildTodayQueue(
     settings: Settings,
     todayStr: String,
 ): TodayQueue {
+    fun isDue(c: Card) = c.nextReviewDate != null && c.nextReviewDate <= todayStr
+
     val due = cards
-        .filter { it.box < GRADUATED_BOX && it.nextReviewDate != null && it.nextReviewDate <= todayStr }
+        .filter { it.box in 1 until GRADUATED_BOX && isDue(it) }
         .sortedWith(
             compareBy(
                 { it.box }, // (1) 낮은 박스 먼저
@@ -64,17 +75,22 @@ fun buildTodayQueue(
         )
         .take(settings.reviewCap)
 
-    // maxActiveCards(WIP 상한): 박스1~6 누적 카드 수가 상한에 도달하면 신규 유입 중단(예방적 안전장치).
+    // 박스0(신규)으로 남아 아직 채점되지 않은 카드 — 도입이 오래된 것 먼저.
+    val leftoverNew = cards
+        .filter { it.box == NEW_CARD_BOX && isDue(it) }
+        .sortedBy { it.introducedAt }
+
+    // maxActiveCards(WIP 상한): 박스0~6 누적 카드 수가 상한에 도달하면 신규 유입 중단(예방적 안전장치).
     val activeCount = cards.count { it.box < GRADUATED_BOX }
     val roomUnderActiveCap = maxOf(0, settings.maxActiveCards - activeCount)
 
-    val capacity = maxOf(0, settings.dailyGoal - due.size)
+    val capacity = maxOf(0, settings.dailyGoal - due.size - leftoverNew.size)
     val newFromPool = newPool.take(minOf(capacity, minOf(settings.newCap, roomUnderActiveCap)))
 
-    return TodayQueue(due, newFromPool)
+    return TodayQueue(due, leftoverNew, newFromPool)
 }
 
-/** 저수지 항목을 실제 학습 카드(박스 1)로 승격. */
+/** 저수지 항목을 실제 학습 카드로 승격 — 복습 기한 없이 박스0으로 도입, 첫 채점 후 박스1로(DESIGN §1.3b). */
 fun introduceFromPool(pool: NewPoolItem, todayStr: String): Card = Card(
     id = pool.id,
     deckId = pool.deckId,
@@ -82,7 +98,7 @@ fun introduceFromPool(pool: NewPoolItem, todayStr: String): Card = Card(
     promptKo = pool.promptKo,
     answerEn = pool.answerEn,
     chunkNote = pool.chunkNote,
-    box = 1,
+    box = NEW_CARD_BOX,
     nextReviewDate = todayStr,
     lastReviewedAt = null,
     correctStreak = 0,

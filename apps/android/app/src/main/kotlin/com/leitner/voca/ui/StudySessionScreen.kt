@@ -9,12 +9,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.leitner.voca.data.AskTeacherContext
 import com.leitner.voca.domain.Card
 import com.leitner.voca.domain.NewPoolItem
 import com.leitner.voca.domain.ReviewLog
@@ -47,14 +51,19 @@ fun StudySessionScreen(
     state: AppUiState,
     onApplyReview: (cardId: String, updated: Card, log: ReviewLog) -> Unit,
     onIntroduce: (card: Card, poolId: String) -> Unit,
+    onAskTeacher: (model: String, question: String, context: AskTeacherContext, onResult: (Result<String>) -> Unit) -> Unit,
     onClose: () -> Unit,
 ) {
+    val speak = rememberSpeaker()
     // 세션 시작 시점의 큐를 한 번만 계산해서 고정한다(PC 웹 StudySessionPage와 동일 원칙,
     // useMemo(..., []) 대응) — remember에 키를 안 줘서 이후 state.cards가 바뀌어도(채점 결과
     // 반영) 큐 자체는 재계산되지 않고, index가 그 고정된 리스트 안에서만 전진한다.
     val queue = remember {
         val q = buildTodayQueue(state.cards, state.newPool, state.settings, today())
-        (q.due.map { QueueItem.Existing(it) } + q.newFromPool.map { QueueItem.FromPool(it) })
+        // 복습(박스1~6) → 박스0 잔류 신규 → 이번 세션 신규 도입 순.
+        (q.due.map { QueueItem.Existing(it) } +
+            q.leftoverNew.map { QueueItem.Existing(it) } +
+            q.newFromPool.map { QueueItem.FromPool(it) })
     }
 
     var index by remember { mutableIntStateOf(0) }
@@ -62,6 +71,7 @@ fun StudySessionScreen(
     var stage by remember { mutableStateOf(0) } // 0=제시, 1=힌트, 2=정답확인
     var correctCount by remember { mutableIntStateOf(0) }
     var totalAnswered by remember { mutableIntStateOf(0) }
+    var showAskPanel by remember { mutableStateOf(false) }
 
     if (queue.isEmpty() || index >= queue.size) {
         Column(
@@ -79,9 +89,21 @@ fun StudySessionScreen(
     }
 
     val item = queue[index]
-    val (promptKo, answerEn, box) = when (item) {
-        is QueueItem.Existing -> Triple(item.card.promptKo, item.card.answerEn, item.card.box)
-        is QueueItem.FromPool -> Triple(item.pool.promptKo, item.pool.answerEn, 0)
+    val promptKo: String; val answerEn: String; val box: Int; val chunkNote: String?
+    when (item) {
+        is QueueItem.Existing -> {
+            promptKo = item.card.promptKo; answerEn = item.card.answerEn
+            box = item.card.box; chunkNote = item.card.chunkNote
+        }
+        is QueueItem.FromPool -> {
+            promptKo = item.pool.promptKo; answerEn = item.pool.answerEn
+            box = 0; chunkNote = item.pool.chunkNote
+        }
+    }
+
+    // ttsAutoPlay가 켜져 있으면 정답 공개(3단계) 시 자동으로 영문을 읽어준다(PC 웹과 동일).
+    LaunchedEffect(index, stage) {
+        if (stage == 2 && state.settings.ttsAutoPlay) speak(answerEn)
     }
 
     fun grade(userClaimedKnew: Boolean) {
@@ -111,9 +133,10 @@ fun StudySessionScreen(
         index++
         hintLevel = 0
         stage = 0
+        showAskPanel = false
     }
 
-    Column(Modifier.fillMaxSize().padding(24.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = onClose) { Text("닫기") }
             Text("${index + 1} / ${queue.size}")
@@ -153,7 +176,34 @@ fun StudySessionScreen(
                 Text(promptKo, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(8.dp))
                 Text(answerEn, style = MaterialTheme.typography.headlineSmall)
-                Spacer(Modifier.height(24.dp))
+                if (!chunkNote.isNullOrBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "📝 $chunkNote",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Row {
+                    OutlinedButton(onClick = { speak(answerEn) }) { Text("🔊 듣기") }
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(onClick = { showAskPanel = !showAskPanel }) { Text("🧑‍🏫 질문") }
+                }
+                if (showAskPanel) {
+                    AskTeacherPanel(
+                        onAsk = { question, onResult ->
+                            onAskTeacher(
+                                state.settings.preferredAiModel,
+                                question,
+                                AskTeacherContext(promptKo, answerEn, chunkNote),
+                                onResult,
+                            )
+                        },
+                        onClose = { showAskPanel = false },
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     OutlinedButton(onClick = { grade(false) }) { Text("몰랐어") }
                     Button(onClick = { grade(true) }) { Text("알았어") }

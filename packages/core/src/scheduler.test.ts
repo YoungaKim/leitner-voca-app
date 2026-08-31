@@ -178,6 +178,27 @@ describe("buildTodayQueue — 정렬·상한", () => {
     expect(due.map((c) => c.id)).toEqual(["due"]);
   });
 
+  it("박스0(신규) 잔류 카드는 due에서 빠지고 leftoverNew로, 복습 뒤 순서가 된다", () => {
+    const cards = [
+      makeCard({ id: "new-old", box: 0, nextReviewDate: "2026-08-24", introducedAt: "2026-08-10" }),
+      makeCard({ id: "new-recent", box: 0, nextReviewDate: "2026-08-24", introducedAt: "2026-08-20" }),
+      makeCard({ id: "box1", box: 1, nextReviewDate: "2026-08-24" }),
+    ];
+    const { due, leftoverNew } = buildTodayQueue(cards, [], settings, "2026-08-24");
+    expect(due.map((c) => c.id)).toEqual(["box1"]);
+    expect(leftoverNew.map((c) => c.id)).toEqual(["new-old", "new-recent"]); // 도입 오래된 것 먼저
+  });
+
+  it("leftoverNew도 dailyGoal 여력을 소진해 신규 도입을 밀어낸다", () => {
+    const cards = [
+      ...Array.from({ length: 20 }, (_, i) => makeCard({ id: `r${i}`, box: 1, nextReviewDate: "2026-08-24" })),
+      ...Array.from({ length: 10 }, (_, i) => makeCard({ id: `n${i}`, box: 0, nextReviewDate: "2026-08-24" })),
+    ];
+    const pool = [{ id: "p1", deckId: "d1", promptKo: "x", answerEn: "y", status: "pending" as const, importedAt: "2026-08-01" }];
+    const { newFromPool } = buildTodayQueue(cards, pool, settings, "2026-08-24"); // dailyGoal 30 = 20 + 10
+    expect(newFromPool).toHaveLength(0);
+  });
+
   it("reviewCap을 넘는 복습분은 잘라낸다", () => {
     const cards = Array.from({ length: 5 }, (_, i) =>
       makeCard({ id: `c${i}`, box: 1, nextReviewDate: "2026-08-24" })

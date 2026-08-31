@@ -3,6 +3,7 @@ package com.leitner.voca.data
 import android.content.Context
 import com.leitner.voca.domain.Card
 import com.leitner.voca.domain.Deck
+import com.leitner.voca.domain.NEW_CARD_BOX
 import com.leitner.voca.domain.NewPoolItem
 import com.leitner.voca.domain.ReviewLog
 import com.leitner.voca.domain.Settings
@@ -67,7 +68,8 @@ class AppRepository(
         val now = Instant.now().toString()
         val card = Card(
             id = UUID.randomUUID().toString(), deckId = deckId, promptKo = promptKo, answerEn = answerEn,
-            chunkNote = chunkNote, box = 1, nextReviewDate = today, lastReviewedAt = null,
+            // 수작업 추가 카드도 저수지 도입과 동일하게 박스0(신규)으로 시작(DESIGN §1.3b).
+            chunkNote = chunkNote, box = NEW_CARD_BOX, nextReviewDate = today, lastReviewedAt = null,
             correctStreak = 0, lapseCount = 0, introducedAt = today, tags = emptyList(), updatedAt = now,
         )
         db.cardDao().upsert(card.toEntity())
@@ -124,6 +126,10 @@ class AppRepository(
         mirror { userId -> sync.pushSyncState(userId, result.syncState) }
         return result
     }
+
+    /** DESIGN §6 '선생님한테 질문' — 카드 컨텍스트 기반 1회성 Q&A(저장 안 함). */
+    suspend fun askTeacher(model: String, question: String, context: AskTeacherContext): String =
+        requestAskTeacher(supabase, model, question, context)
 
     /** 로그인 직후 1회 호출 — 클라우드와 병합해 로컬(Room)을 덮어쓴다(PC 웹 store.ts mergeFromCloud). */
     suspend fun mergeFromCloud(userId: String) {

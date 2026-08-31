@@ -33,7 +33,12 @@ private val BOX_COLORS = listOf(
 )
 
 @Composable
-fun HomeScreen(state: AppUiState, onStartSession: () -> Unit, onGoDecks: () -> Unit) {
+fun HomeScreen(
+    state: AppUiState,
+    onStartSession: () -> Unit,
+    onGoDecks: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     if (state.cards.isEmpty() && state.decks.isEmpty()) {
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -50,7 +55,8 @@ fun HomeScreen(state: AppUiState, onStartSession: () -> Unit, onGoDecks: () -> U
     val queue = remember(state.cards, state.newPool, state.settings) {
         buildTodayQueue(state.cards, state.newPool, state.settings, today())
     }
-    val todayCount = queue.due.size + queue.newFromPool.size
+    val todayCount = queue.due.size + queue.leftoverNew.size + queue.newFromPool.size
+    val newCount = state.cards.count { it.box == 0 }
     val mastered = state.cards.count { it.box == GRADUATED_BOX }
     val boxCounts = (1..GRADUATED_BOX).map { box -> state.cards.count { it.box == box } }
 
@@ -65,7 +71,7 @@ fun HomeScreen(state: AppUiState, onStartSession: () -> Unit, onGoDecks: () -> U
                     BoxRow(label, count, BOX_COLORS[i], count.toFloat() / maxCount)
                 }
                 Text(
-                    "총 ${state.cards.size}문장 · 마스터 $mastered",
+                    "총 ${state.cards.size}문장 · 신규 $newCount · 마스터 $mastered",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp),
                 )
@@ -85,7 +91,12 @@ fun HomeScreen(state: AppUiState, onStartSession: () -> Unit, onGoDecks: () -> U
                     androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
                 }
                 androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
-                androidx.compose.material3.TextButton(onClick = onGoDecks) { Text("단어장 관리") }
+                androidx.compose.foundation.layout.Row(
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    androidx.compose.material3.TextButton(onClick = onGoDecks) { Text("단어장 관리") }
+                    androidx.compose.material3.TextButton(onClick = onOpenSettings) { Text("설정") }
+                }
             }
         }
     }

@@ -28,7 +28,7 @@ import com.leitner.voca.domain.GRADUATED_BOX
 // 수동 CSV 파일 업로드는 스펙 아웃(2026-08-26, PC와 동일 결정) — 콘텐츠 소스는 구글시트 자동
 // 동기화(2d)로 단일화한다. Android의 2d 이식(설정 화면 + Sheets 동기화)은 별도로 진행.
 
-private val BOX_LABEL = listOf("", "1", "2", "3", "4", "5", "6", "졸업")
+private val BOX_LABEL = listOf("신규", "1", "2", "3", "4", "5", "6", "졸업")
 
 @Composable
 fun DeckDetailScreen(
@@ -65,7 +65,10 @@ fun DeckDetailScreen(
                 Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                     Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                         Text(card.answerEn, style = MaterialTheme.typography.bodyMedium)
-                        Text("박스 ${BOX_LABEL[card.box]}", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            if (card.box == 0 || card.box == GRADUATED_BOX) BOX_LABEL[card.box] else "박스 ${BOX_LABEL[card.box]}",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                     Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                         Text(card.promptKo, style = MaterialTheme.typography.bodySmall)

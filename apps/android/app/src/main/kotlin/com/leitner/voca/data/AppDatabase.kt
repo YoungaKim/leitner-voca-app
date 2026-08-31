@@ -9,7 +9,8 @@ import androidx.room.TypeConverters
         DeckEntity::class, CardEntity::class, NewPoolEntity::class, ReviewLogEntity::class,
         SettingsEntity::class, SyncStateEntity::class,
     ],
-    version = 3, // v3: 2d — Settings에 maxActiveCards/contentSourceUrl/contentSourceDeckId/autoSyncEnabled 추가 + sync_state 테이블 신설
+    version = 4, // v4: Settings에 ttsAutoPlay(듣기 자동재생)/preferredAiModel(선생님한테 질문) 추가
+    // v3: 2d — Settings에 maxActiveCards/contentSourceUrl/contentSourceDeckId/autoSyncEnabled 추가 + sync_state 테이블 신설
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

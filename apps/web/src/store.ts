@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
-import { DEFAULT_SETTINGS, today as todayStr } from "@leitner/core";
+import { DEFAULT_SETTINGS, NEW_CARD_BOX, today as todayStr } from "@leitner/core";
 import type { Card, Deck, NewPoolItem, ReviewLog, Settings, SyncState } from "@leitner/core";
 import {
   cardsRepo,
@@ -203,7 +203,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       promptKo,
       answerEn,
       chunkNote,
-      box: 1,
+      // 수작업 추가 카드도 저수지 도입과 동일하게 박스0(신규)으로 시작 — 첫 노출은
+      // 채점 전이라 복습 기한 없이 항상 due, 첫 채점 후 박스1로 올라간다(DESIGN §1.3b).
+      box: NEW_CARD_BOX,
       nextReviewDate: now,
       lastReviewedAt: null,
       correctStreak: 0,

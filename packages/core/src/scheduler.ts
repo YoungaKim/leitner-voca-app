@@ -83,9 +83,15 @@ export function applyExamCompression(
   return Math.min(base, Math.max(1, Math.floor(daysUntilExam / 2)));
 }
 
-/** DESIGN §1.4 오늘의 복습 큐 — 복습 카드(정렬·상한 적용) + 저수지에서 끌어올 신규 후보. */
+/** DESIGN §1.4 오늘의 복습 큐.
+ * 출제 순서: due(복습, 박스1~6) → leftoverNew(박스0 잔류 신규) → newFromPool(이번 세션 신규 도입).
+ * 신규 카드는 "처음 보는 것"이므로 복습이 끝난 뒤에 배치한다. 지난 세션에 채점을 못 끝내
+ * 박스0으로 남은 카드도 마찬가지로 복습 뒤·신규 도입 앞에 둔다(박스 번호로 정렬하면
+ * 박스0이 박스1보다 앞서 나오는 문제를 막기 위함).
+ */
 export interface TodayQueue {
   due: Card[];
+  leftoverNew: Card[];
   newFromPool: NewPoolItem[];
 }
 
@@ -95,24 +101,31 @@ export function buildTodayQueue(
   settings: Pick<Settings, "dailyGoal" | "reviewCap" | "newCap" | "maxActiveCards">,
   todayStr: string
 ): TodayQueue {
+  const isDue = (c: Card) => c.nextReviewDate !== null && c.nextReviewDate <= todayStr;
+
   const due = cards
-    .filter((c) => c.box < GRADUATED_BOX && c.nextReviewDate !== null && c.nextReviewDate <= todayStr)
+    .filter((c) => c.box >= 1 && c.box < GRADUATED_BOX && isDue(c))
     .sort((a, b) => {
       if (a.box !== b.box) return a.box - b.box; // (1) 낮은 박스 먼저
       return (a.nextReviewDate ?? "").localeCompare(b.nextReviewDate ?? ""); // (2) 오래 밀린 것 먼저
     })
     .slice(0, settings.reviewCap);
 
-  // maxActiveCards(WIP 상한): 박스1~6 누적 카드 수가 상한에 도달하면 신규 유입 중단(예방적 안전장치).
+  // 박스0(신규)으로 남아 아직 채점되지 않은 카드 — 도입이 오래된 것 먼저.
+  const leftoverNew = cards
+    .filter((c) => c.box === NEW_CARD_BOX && isDue(c))
+    .sort((a, b) => (a.introducedAt ?? "").localeCompare(b.introducedAt ?? ""));
+
+  // maxActiveCards(WIP 상한): 박스0~6 누적 카드 수가 상한에 도달하면 신규 유입 중단(예방적 안전장치).
   const activeCount = cards.filter((c) => c.box < GRADUATED_BOX).length;
   const roomUnderActiveCap = Math.max(0, settings.maxActiveCards - activeCount);
 
-  const capacity = Math.max(0, settings.dailyGoal - due.length);
+  const capacity = Math.max(0, settings.dailyGoal - due.length - leftoverNew.length);
   const newFromPool = newPool
     .filter((p) => p.status === "pending")
     .slice(0, Math.min(capacity, settings.newCap, roomUnderActiveCap));
 
-  return { due, newFromPool };
+  return { due, leftoverNew, newFromPool };
 }
 
 /** 저수지 항목을 실제 학습 카드(박스 1)로 승격. */

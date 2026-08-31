@@ -34,12 +34,12 @@ export default function HomePage() {
   // buildTodayQueue는 호출마다 새 배열을 만들기 때문에 zustand 셀렉터로 직접 쓰면
   // 매 렌더 "스냅샷이 바뀜"으로 인식돼 무한 리렌더에 빠진다. useMemo로 감싸서
   // cards/newPool/settings가 실제로 바뀔 때만 재계산한다.
-  const { due: dueCards, newFromPool } = useMemo(
+  const { due: dueCards, leftoverNew, newFromPool } = useMemo(
     () => buildTodayQueue(cards, newPool, settings, todayStr()),
     [cards, newPool, settings]
   );
 
-  const todayCount = dueCards.length + newFromPool.length;
+  const todayCount = dueCards.length + leftoverNew.length + newFromPool.length;
   const newCount = cards.filter((c) => c.box === NEW_CARD_BOX).length;
   const mastered = cards.filter((c) => c.box === GRADUATED_BOX).length;
   const boxCounts = Array.from({ length: 6 }, (_, i) =>

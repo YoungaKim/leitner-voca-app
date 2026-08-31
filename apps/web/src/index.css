@@ -292,6 +292,23 @@ select {
   white-space: nowrap;
 }
 
+.card-note {
+  font-size: 0.85rem;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.card-edit-form {
+  flex: 1;
+  margin-bottom: 0;
+  max-width: none;
+}
+
+.card-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .filters {
   display: flex;
   gap: 0.5rem;

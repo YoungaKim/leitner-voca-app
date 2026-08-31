@@ -16,6 +16,7 @@ private fun makeCard(
     nextReviewDate: String? = "2026-08-20",
     correctStreak: Int = 2,
     lapseCount: Int = 0,
+    introducedAt: String = "2026-08-01",
 ): Card = Card(
     id = id,
     deckId = "d1",
@@ -26,7 +27,7 @@ private fun makeCard(
     lastReviewedAt = "2026-08-16",
     correctStreak = correctStreak,
     lapseCount = lapseCount,
-    introducedAt = "2026-08-01",
+    introducedAt = introducedAt,
 )
 
 class SchedulerTest {
@@ -111,6 +112,27 @@ class SchedulerTest {
         )
         val queue = buildTodayQueue(cards, emptyList(), settings, "2026-08-24")
         assertEquals(listOf("due"), queue.due.map { it.id })
+    }
+
+    @Test
+    fun `박스0 신규 잔류 카드는 due에서 빠지고 leftoverNew로, 복습 뒤 순서가 된다`() {
+        val cards = listOf(
+            makeCard(id = "new-old", box = 0, nextReviewDate = "2026-08-24", introducedAt = "2026-08-10"),
+            makeCard(id = "new-recent", box = 0, nextReviewDate = "2026-08-24", introducedAt = "2026-08-20"),
+            makeCard(id = "box1", box = 1, nextReviewDate = "2026-08-24"),
+        )
+        val queue = buildTodayQueue(cards, emptyList(), settings, "2026-08-24")
+        assertEquals(listOf("box1"), queue.due.map { it.id })
+        assertEquals(listOf("new-old", "new-recent"), queue.leftoverNew.map { it.id })
+    }
+
+    @Test
+    fun `leftoverNew도 dailyGoal 여력을 소진해 신규 도입을 밀어낸다`() {
+        val cards = (0 until 20).map { makeCard(id = "r$it", box = 1, nextReviewDate = "2026-08-24") } +
+            (0 until 10).map { makeCard(id = "n$it", box = 0, nextReviewDate = "2026-08-24") }
+        val pool = listOf(NewPoolItem(id = "p1", deckId = "d1", promptKo = "x", answerEn = "y", importedAt = "2026-08-01"))
+        val queue = buildTodayQueue(cards, pool, settings, "2026-08-24") // dailyGoal 30 = 20 + 10
+        assertTrue(queue.newFromPool.isEmpty())
     }
 
     @Test
