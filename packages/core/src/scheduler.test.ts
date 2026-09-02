@@ -199,12 +199,12 @@ describe("buildTodayQueue — 정렬·상한", () => {
     expect(newFromPool).toHaveLength(0);
   });
 
-  it("reviewCap을 넘는 복습분은 잘라낸다", () => {
-    const cards = Array.from({ length: 5 }, (_, i) =>
+  it("오늘 기한이 된 복습은 상한 없이 전부 큐에 넣는다", () => {
+    const cards = Array.from({ length: 120 }, (_, i) =>
       makeCard({ id: `c${i}`, box: 1, nextReviewDate: "2026-08-24" })
     );
-    const { due } = buildTodayQueue(cards, [], { ...settings, reviewCap: 3 }, "2026-08-24");
-    expect(due).toHaveLength(3);
+    const { due } = buildTodayQueue(cards, [], settings, "2026-08-24");
+    expect(due).toHaveLength(120);
   });
 
   it("복습이 dailyGoal을 다 채우면 신규를 넣지 않는다(복습 우선)", () => {

@@ -149,8 +149,7 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(24.dp))
         Text("학습량", style = MaterialTheme.typography.titleMedium)
-        SettingsNumberField("하루 목표(dailyGoal)", settings.dailyGoal) { onUpdateSettings(settings.copy(dailyGoal = it)) }
-        SettingsNumberField("복습 상한(reviewCap)", settings.reviewCap) { onUpdateSettings(settings.copy(reviewCap = it)) }
+        SettingsNumberField("하루 복습 목표(dailyGoal)", settings.dailyGoal) { onUpdateSettings(settings.copy(dailyGoal = it)) }
         SettingsNumberField("하루 신규 상한(newCap)", settings.newCap) { onUpdateSettings(settings.copy(newCap = it)) }
         SettingsNumberField("학습 중 카드 총량 상한(maxActiveCards)", settings.maxActiveCards) { onUpdateSettings(settings.copy(maxActiveCards = it)) }
     }

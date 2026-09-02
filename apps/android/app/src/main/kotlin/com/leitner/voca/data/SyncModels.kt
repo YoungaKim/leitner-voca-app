@@ -77,7 +77,7 @@ data class SettingsRow(
     @SerialName("user_id") val userId: String,
     val intervals: List<Int>,
     @SerialName("daily_goal") val dailyGoal: Int,
-    @SerialName("review_cap") val reviewCap: Int,
+    @SerialName("review_cap") val reviewCap: Int = 9999, // 폐기된 필드 — 원격 스키마(NOT NULL) 호환용 더미. 앱에서 미사용.
     @SerialName("new_cap") val newCap: Int,
     @SerialName("max_active_cards") val maxActiveCards: Int,
     @SerialName("lapse_mode") val lapseMode: String,
@@ -95,14 +95,14 @@ data class SettingsRow(
 // contentSourceDeckId는 PC 웹과 마찬가지로 클라우드에 올리지 않는 로컬 전용 필드다(schema.sql
 // settings 테이블에 컬럼 자체가 없음 — 시트 1개=덱 1개 매핑을 기기마다 다르게 둬도 되게).
 fun Settings.toRow(userId: String) = SettingsRow(
-    userId, intervals, dailyGoal, reviewCap, newCap, maxActiveCards,
+    userId, intervals, dailyGoal, 9999, newCap, maxActiveCards,
     if (lapseMode == LapseMode.SOFT) "soft" else "reset",
     hintFreeLevel, notifyTime, recoveryEase, contentSourceUrl, autoSyncEnabled, refillThresholdDays, ttsAutoPlay,
     preferredAiModel,
     updatedAt ?: java.time.Instant.now().toString(),
 )
 fun SettingsRow.toDomain(existingContentSourceDeckId: String? = null) = Settings(
-    intervals, dailyGoal, reviewCap, newCap, maxActiveCards,
+    intervals, dailyGoal, newCap, maxActiveCards,
     if (lapseMode == "soft") LapseMode.SOFT else LapseMode.RESET,
     hintFreeLevel, notifyTime, recoveryEase, contentSourceUrl, existingContentSourceDeckId, autoSyncEnabled,
     refillThresholdDays, ttsAutoPlay, preferredAiModel, updatedAt,

@@ -46,10 +46,13 @@ fun applyExamCompression(box: Int, intervals: List<Int>, daysUntilExam: Int): In
 }
 
 /** DESIGN §1.4 오늘의 복습 큐.
- * 출제 순서: due(복습, 박스1~6) → leftoverNew(박스0 잔류 신규) → newFromPool(이번 세션 신규 도입).
+ * 출제 순서: due(복습, 박스1~6) → leftoverNew(박스0 잔류 신규) → newFromPool(신규 도입).
  * 신규 카드는 "처음 보는 것"이므로 복습이 끝난 뒤에 배치한다. 지난 세션에 채점을 못 끝내
  * 박스0으로 남은 카드도 마찬가지로 복습 뒤·신규 도입 앞에 둔다(박스 번호로 정렬하면
  * 박스0이 박스1보다 앞서 나오는 문제를 막기 위함).
+ *
+ * 세션당 분량 상한(reviewCap)은 두지 않는다 — 오늘 기한이 된 복습은 전부 큐에 넣고,
+ * 사용자가 원하는 만큼 풀다 닫으면 남은 due는 다음에 다시 잡힌다.
  */
 data class TodayQueue(
     val due: List<Card>,
@@ -73,7 +76,6 @@ fun buildTodayQueue(
                 { it.nextReviewDate ?: "" }, // (2) 오래 밀린 것 먼저
             )
         )
-        .take(settings.reviewCap)
 
     // 박스0(신규)으로 남아 아직 채점되지 않은 카드 — 도입이 오래된 것 먼저.
     val leftoverNew = cards
@@ -84,6 +86,8 @@ fun buildTodayQueue(
     val activeCount = cards.count { it.box < GRADUATED_BOX }
     val roomUnderActiveCap = maxOf(0, settings.maxActiveCards - activeCount)
 
+    // 신규 유입 억제: 오늘 복습 부하(due + 박스0 잔류)가 하루 목표를 넘으면 신규는 0.
+    // 복습을 목표치 밑으로 소화하면 그만큼 신규가 다시 들어온다.
     val capacity = maxOf(0, settings.dailyGoal - due.size - leftoverNew.size)
     val newFromPool = newPool.take(minOf(capacity, minOf(settings.newCap, roomUnderActiveCap)))
 

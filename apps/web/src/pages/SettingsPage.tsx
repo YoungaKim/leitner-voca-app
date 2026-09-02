@@ -16,7 +16,6 @@ export default function SettingsPage() {
   const [deckId, setDeckId] = useState(settings.contentSourceDeckId ?? decks[0]?.id ?? "");
 
   const [dailyGoal, setDailyGoal] = useState(String(settings.dailyGoal));
-  const [reviewCap, setReviewCap] = useState(String(settings.reviewCap));
   const [newCap, setNewCap] = useState(String(settings.newCap));
   const [maxActiveCards, setMaxActiveCards] = useState(String(settings.maxActiveCards));
 
@@ -39,7 +38,6 @@ export default function SettingsPage() {
     e.preventDefault();
     await updateSettings({
       dailyGoal: Math.max(1, Number(dailyGoal) || settings.dailyGoal),
-      reviewCap: Math.max(1, Number(reviewCap) || settings.reviewCap),
       newCap: Math.max(0, Number(newCap) || settings.newCap),
       maxActiveCards: Math.max(1, Number(maxActiveCards) || settings.maxActiveCards),
     });
@@ -59,17 +57,15 @@ export default function SettingsPage() {
 
       <h3>학습량</h3>
       <p className="muted">
-        하루 목표 카드 수, 신규/복습 상한, 그리고 박스1~6에 동시에 쌓일 수 있는 카드 총량(maxActiveCards)을
-        조절합니다. maxActiveCards에 도달하면 밀린 카드가 줄어들 때까지 신규 카드 유입이 자동으로 멈춥니다.
+        하루 복습 목표(dailyGoal), 하루 신규 상한(newCap), 그리고 박스1~6에 동시에 쌓일 수 있는 카드
+        총량(maxActiveCards)을 조절합니다. 오늘 기한이 된 복습은 상한 없이 전부 나오며, 목표는 완료 표시·
+        진척도의 기준일 뿐 넘겨서 더 풀어도 됩니다. 복습 부하가 목표를 넘거나 maxActiveCards에 도달하면
+        밀린 카드가 줄어들 때까지 신규 카드 유입이 자동으로 멈춥니다.
       </p>
       <form className="card-form" onSubmit={handleSaveScheduler}>
         <label className="field-row">
-          하루 목표(dailyGoal)
+          하루 복습 목표(dailyGoal)
           <input type="number" min={1} value={dailyGoal} onChange={(e) => setDailyGoal(e.target.value)} />
-        </label>
-        <label className="field-row">
-          복습 상한(reviewCap)
-          <input type="number" min={1} value={reviewCap} onChange={(e) => setReviewCap(e.target.value)} />
         </label>
         <label className="field-row">
           하루 신규 상한(newCap)

@@ -57,8 +57,7 @@ data class ReviewLog(
 
 data class Settings(
     val intervals: List<Int> = listOf(1, 2, 4, 8, 16, 32),
-    val dailyGoal: Int = 30,
-    val reviewCap: Int = 60,
+    val dailyGoal: Int = 30, // 하루 복습 목표(완료 표시·진척도 기준). 넘겨서 더 풀어도 됨. 신규 유입 억제 기준도 겸함.
     val newCap: Int = 8,
     val maxActiveCards: Int = 150, // 박스1~6 누적 상한(WIP cap). DESIGN §1.4 — 이전에 Android에서 누락돼있던 걸 2d에서 같이 포팅.
     val lapseMode: LapseMode = LapseMode.SOFT,

@@ -34,12 +34,29 @@ export default function HomePage() {
   // buildTodayQueue는 호출마다 새 배열을 만들기 때문에 zustand 셀렉터로 직접 쓰면
   // 매 렌더 "스냅샷이 바뀜"으로 인식돼 무한 리렌더에 빠진다. useMemo로 감싸서
   // cards/newPool/settings가 실제로 바뀔 때만 재계산한다.
-  const { due: dueCards, leftoverNew, newFromPool } = useMemo(
+  const { leftoverNew, newFromPool } = useMemo(
     () => buildTodayQueue(cards, newPool, settings, todayStr()),
     [cards, newPool, settings]
   );
 
-  const todayCount = dueCards.length + leftoverNew.length + newFromPool.length;
+  // "오늘 복습할 카드" = 오늘 복습 예정일이 된 박스1~6 카드 전체 + 신규(박스0 잔류 + 도입분).
+  // 세션당 분량 상한은 없다 — 원하는 만큼 풀다 닫으면 남은 건 다음에 다시 잡힌다.
+  const dueToday = useMemo(() => {
+    const t = todayStr();
+    return cards.filter(
+      (c) => c.box >= 1 && c.box < GRADUATED_BOX && c.nextReviewDate !== null && c.nextReviewDate <= t
+    );
+  }, [cards]);
+
+  const queueNewCount = leftoverNew.length + newFromPool.length;
+  const todayCount = dueToday.length + queueNewCount;
+  const dueByBox = Array.from({ length: 6 }, (_, i) =>
+    dueToday.filter((c) => c.box === i + 1).length
+  );
+  const queueBreakdown = [
+    `신규 ${queueNewCount}`,
+    ...dueByBox.map((n, i) => (n > 0 ? `박스${i + 1} ${n}` : null)).filter(Boolean),
+  ].join(" · ");
   const newCount = cards.filter((c) => c.box === NEW_CARD_BOX).length;
   const mastered = cards.filter((c) => c.box === GRADUATED_BOX).length;
   const boxCounts = Array.from({ length: 6 }, (_, i) =>
@@ -173,6 +190,9 @@ export default function HomePage() {
       {todayCount > 0 ? (
         <section className="cta">
           <div className="cta-number">오늘 복습할 카드 {todayCount}개</div>
+          <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem", marginBottom: 12 }}>
+            {queueBreakdown}
+          </div>
           <Link className="btn primary large" to="/session">
             학습 시작
           </Link>

@@ -99,7 +99,6 @@ data class SettingsEntity(
     @PrimaryKey val id: Int = 0,
     val intervals: List<Int>,
     val dailyGoal: Int,
-    val reviewCap: Int,
     val newCap: Int,
     val maxActiveCards: Int,
     val lapseMode: String, // "soft" | "reset"
@@ -116,7 +115,7 @@ data class SettingsEntity(
 )
 
 fun SettingsEntity.toDomain() = Settings(
-    intervals, dailyGoal, reviewCap, newCap, maxActiveCards,
+    intervals, dailyGoal, newCap, maxActiveCards,
     if (lapseMode == "soft") LapseMode.SOFT else LapseMode.RESET,
     hintFreeLevel, notifyTime, recoveryEase, contentSourceUrl, contentSourceDeckId, autoSyncEnabled,
     refillThresholdDays, ttsAutoPlay, preferredAiModel, updatedAt,
@@ -125,7 +124,6 @@ fun Settings.toEntity() = SettingsEntity(
     id = 0,
     intervals = intervals,
     dailyGoal = dailyGoal,
-    reviewCap = reviewCap,
     newCap = newCap,
     maxActiveCards = maxActiveCards,
     lapseMode = if (lapseMode == LapseMode.SOFT) "soft" else "reset",

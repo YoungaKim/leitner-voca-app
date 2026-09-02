@@ -104,7 +104,7 @@ function settingsToRow(userId: string, s: Settings) {
     user_id: userId,
     intervals: s.intervals,
     daily_goal: s.dailyGoal,
-    review_cap: s.reviewCap,
+    review_cap: 9999, // 폐기된 필드 — 원격 스키마(NOT NULL) 호환용 더미. 앱에서 더는 사용 안 함.
     new_cap: s.newCap,
     max_active_cards: s.maxActiveCards,
     lapse_mode: s.lapseMode,
@@ -123,7 +123,6 @@ function rowToSettings(r: any): Settings {
   return {
     intervals: r.intervals,
     dailyGoal: r.daily_goal,
-    reviewCap: r.review_cap,
     newCap: r.new_cap,
     maxActiveCards: r.max_active_cards,
     lapseMode: r.lapse_mode,

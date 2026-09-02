@@ -66,8 +66,7 @@ export interface ReviewLog {
 
 export interface Settings {
   intervals: number[]; // 기본 [1,2,4,8,16,32], 속성모드 [1,2,4,8]
-  dailyGoal: number; // 기본 30
-  reviewCap: number; // 기본 60
+  dailyGoal: number; // 기본 30 — 하루 복습 목표(완료 화면·진척도 기준). 넘겨서 더 풀어도 됨. 신규 유입 억제 기준도 겸함.
   newCap: number; // 기본 8
   maxActiveCards: number; // 기본 150 — 박스1~6 누적 상한(WIP cap), 상한 도달 시 신규 유입 중단
   lapseMode: LapseMode; // 기본 'soft'
@@ -86,7 +85,6 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   intervals: [1, 2, 4, 8, 16, 32],
   dailyGoal: 30,
-  reviewCap: 60,
   newCap: 8,
   maxActiveCards: 150,
   lapseMode: "soft",

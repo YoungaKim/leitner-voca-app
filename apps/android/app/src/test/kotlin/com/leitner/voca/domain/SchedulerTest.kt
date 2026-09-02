@@ -136,10 +136,10 @@ class SchedulerTest {
     }
 
     @Test
-    fun `reviewCap을 넘는 복습분은 잘라낸다`() {
-        val cards = (0 until 5).map { makeCard(id = "c$it", box = 1, nextReviewDate = "2026-08-24") }
-        val queue = buildTodayQueue(cards, emptyList(), settings.copy(reviewCap = 3), "2026-08-24")
-        assertEquals(3, queue.due.size)
+    fun `오늘 기한이 된 복습은 상한 없이 전부 큐에 넣는다`() {
+        val cards = (0 until 120).map { makeCard(id = "c$it", box = 1, nextReviewDate = "2026-08-24") }
+        val queue = buildTodayQueue(cards, emptyList(), settings, "2026-08-24")
+        assertEquals(120, queue.due.size)
     }
 
     @Test

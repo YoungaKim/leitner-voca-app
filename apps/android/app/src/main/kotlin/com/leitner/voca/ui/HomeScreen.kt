@@ -55,7 +55,16 @@ fun HomeScreen(
     val queue = remember(state.cards, state.newPool, state.settings) {
         buildTodayQueue(state.cards, state.newPool, state.settings, today())
     }
+    // "오늘 복습할 카드" = 오늘 due인 박스1~6 전체 + 신규(박스0 잔류 + 도입분). 세션당 상한 없음.
     val todayCount = queue.due.size + queue.leftoverNew.size + queue.newFromPool.size
+    val queueNewCount = queue.leftoverNew.size + queue.newFromPool.size
+    val queueBreakdown = buildString {
+        append("신규 $queueNewCount")
+        (1..6).forEach { box ->
+            val n = queue.due.count { it.box == box }
+            if (n > 0) append(" · 박스$box $n")
+        }
+    }
     val newCount = state.cards.count { it.box == 0 }
     val mastered = state.cards.count { it.box == GRADUATED_BOX }
     val boxCounts = (1..GRADUATED_BOX).map { box -> state.cards.count { it.box == box } }
@@ -84,6 +93,8 @@ fun HomeScreen(
             Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 if (todayCount > 0) {
                     Text("오늘 복습할 카드 ${todayCount}개", style = MaterialTheme.typography.titleLarge)
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
+                    Text(queueBreakdown, style = MaterialTheme.typography.bodySmall)
                     androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
                     Button(onClick = onStartSession) { Text("학습 시작") }
                 } else {

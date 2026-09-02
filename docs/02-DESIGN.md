@@ -124,7 +124,7 @@ buildTodayQueue():
     due = cards where nextReviewDate <= today AND box < 7
     정렬: (1) box 오름차순           # 낮은 박스(급한 것) 먼저 ← 라이트너 원조 우선순위
           (2) nextReviewDate 오름차순  # 오래 밀린 것 먼저
-    due = due.take(reviewCap)
+    # 세션당 분량 상한은 없다 — 오늘 기한이 된 복습은 전부 큐에 넣는다.
 
     여력 = dailyGoal - due.size
     newCards = pullFromNewPool(min(여력, newCap))   # §3 신규 저수지에서
@@ -133,10 +133,11 @@ buildTodayQueue():
 
 - **복습 > 신규 우선** (밀린 복습 폭발 방지).
 - **낮은 박스 우선** — "칸이 여러 개 찼을 때 뭐부터?"의 답. 낮은 칸일수록 잊기 직전 + 비워야 위로 흐름.
+- **세션당 상한 없음** — 오늘 due는 전부 큐에 담고, 사용자가 원하는 만큼 풀다 닫으면 남은 건 다음에 다시 잡힌다. `dailyGoal`은 완료 표시·진척도의 기준이자 신규 유입 억제 기준일 뿐, 복습 개수를 자르지 않는다. (구 `reviewCap` 파라미터 폐기.)
 
 ### 1.5 신규 도입 · 밀린 카드 · 파라미터
 
-**확정 기본값(문장 기준):** `dailyGoal = 30`, `reviewCap = 60`, `newCap = 8`, `maxActiveCards = 150`
+**확정 기본값(문장 기준):** `dailyGoal = 30`, `newCap = 8`, `maxActiveCards = 150`
 > 문장은 단어보다 카드당 노력이 크므로 단어 시절(50/80/15)에서 하향 조정.
 > 예: 한가한 날 15복습 → 8신규(23) / 보통 25복습 → 5신규(30) / 바쁜 45복습 → 신규 0.
 
@@ -147,7 +148,7 @@ buildTodayQueue():
 buildTodayQueue():
     due = cards where nextReviewDate <= today AND box < 7
     정렬: (1) box 오름차순 (2) nextReviewDate 오름차순
-    due = due.take(reviewCap)
+    # 세션당 분량 상한 없음 — due 전부 유지
 
     activeCount = count(cards where box < 7)          # 박스1~6 누적 총량
     여력 = min(dailyGoal - due.size, maxActiveCards - activeCount)
@@ -157,7 +158,7 @@ buildTodayQueue():
 
 - `activeCount`가 `maxActiveCards`에 도달하면 신규는 자동 0 → 정체 상태에서 더 이상 부하가 커지지 않고, 기존 카드가 졸업(box=7)하며 빠져야 다시 신규가 들어옴.
 - 기본값 150은 `dailyGoal=30` 기준 대략 5일치 버퍼 — 실사용 중 정체 빈도 보고 조정.
-- **밀린 카드:** 기한 지난 카드는 `reviewCap`으로 나눠 소화(오래 밀린 것부터). 복귀 완화 옵션 시 며칠간 상한 20% 증량.
+- **밀린 카드:** 기한 지난 카드는 오래 밀린 것부터 큐 앞쪽에 배치. 한 번에 다 풀 필요는 없고 나눠 앉아 소화하면 된다.
 - **세션 내 오답 재시도:** 틀린 카드는 세션 **끝에 1회 재노출**. box/nextReviewDate에는 미반영(즉시 재노출은 너무 쉽고, 재시도 승급은 당일 승급 모순).
 
 ### 1.6 시험 대비 특화
@@ -197,7 +198,7 @@ ReviewLog(통계/디버깅)
   inputMethod?(grade|text)   ← §1.3a, 자기채점/텍스트 입력 중 무엇으로 채점됐는지(선택, 통계용)
 
 Settings
-  intervals[], dailyGoal, reviewCap, newCap, maxActiveCards
+  intervals[], dailyGoal, newCap, maxActiveCards
   lapseMode(reset|soft), hintFreeLevel(기본 1)
   notifyTime, recoveryEase(on/off)
   contentSourceUrl, autoSyncEnabled, refillThresholdDays(기본 3)
