@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -136,7 +137,9 @@ fun StudySessionScreen(
         showAskPanel = false
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
+    // imePadding(): 키보드가 뜨면 스크롤 영역이 그만큼 줄어들어, '질문하기' 버튼을
+    // 키보드 위로 스크롤해 올릴 수 있다.
+    Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(24.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = onClose) { Text("닫기") }
             Text("${index + 1} / ${queue.size}")

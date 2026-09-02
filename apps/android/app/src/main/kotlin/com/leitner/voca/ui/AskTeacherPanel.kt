@@ -14,6 +14,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +38,20 @@ fun AskTeacherPanel(
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
 
+    // Button 클릭과 키보드의 '보내기' 액션이 공유하는 제출 로직.
+    fun submit() {
+        val q = question.trim()
+        if (q.isEmpty() || loading) return
+        loading = true
+        error = null
+        answer = null
+        onAsk(q) { result ->
+            loading = false
+            result.onSuccess { answer = it }
+            result.onFailure { error = it.message ?: it.toString() }
+        }
+    }
+
     Card(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         Column(Modifier.padding(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -48,22 +65,13 @@ fun AskTeacherPanel(
                 label = { Text("이 문장에 대해 궁금한 점을 물어보세요") },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !loading,
-                singleLine = false,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { submit() }),
             )
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = {
-                    val q = question.trim()
-                    if (q.isEmpty() || loading) return@Button
-                    loading = true
-                    error = null
-                    answer = null
-                    onAsk(q) { result ->
-                        loading = false
-                        result.onSuccess { answer = it }
-                        result.onFailure { error = it.message ?: it.toString() }
-                    }
-                },
+                onClick = { submit() },
                 enabled = !loading && question.isNotBlank(),
             ) { Text("질문하기") }
 

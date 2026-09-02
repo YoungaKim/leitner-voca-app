@@ -1,9 +1,35 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlin.plugin.serialization") // 2c: supabase-kt 모델 직렬화에 필요
+    id("com.google.firebase.appdistribution") // 배포: Firebase App Distribution 업로드
+}
+
+// 서명 키(release.keystore)와 비밀번호는 keystore.properties에 두고 git에서 제외한다.
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+// Firebase App ID 등 배포 설정도 gitignore된 파일에서 읽는다.
+val distProps = Properties().apply {
+    val f = rootProject.file("appdistribution.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+// versionCode를 git 커밋 수로 자동 증가시켜, 새로 빌드할 때마다 덮어쓰기 설치가 되게 한다.
+val gitCommitCount: Int = try {
+    val p = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+        .directory(rootProject.projectDir)
+        .redirectErrorStream(true)
+        .start()
+    p.inputStream.bufferedReader().readText().trim().toInt().also { p.waitFor() }
+} catch (_: Exception) {
+    1
 }
 
 android {
@@ -14,15 +40,34 @@ android {
         applicationId = "com.leitner.voca"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-2b"
+        versionCode = gitCommitCount
+        versionName = "0.1.$gitCommitCount"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (keystoreProps.isNotEmpty()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            // keystore.properties가 있을 때만 release 서명 적용(없으면 unsigned).
+            signingConfig = signingConfigs.findByName("release")
+            firebaseAppDistribution {
+                appId = distProps.getProperty("appId") ?: ""
+                artifactType = "APK"
+                groups = distProps.getProperty("groups") ?: "testers"
+                releaseNotes = "자동 빌드 v0.1.$gitCommitCount"
+            }
         }
     }
 

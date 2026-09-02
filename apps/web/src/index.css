@@ -551,6 +551,20 @@ select {
   gap: 0.5rem;
 }
 
+/* 모바일: 키보드가 떠도 입력창+버튼이 세로로 쌓여 버튼이 눌리기 쉽게,
+   그리고 scrollIntoView가 키보드 위 여백을 확보하도록 */
+@media (max-width: 640px) {
+  .ask-teacher-form {
+    flex-direction: column;
+  }
+  .ask-teacher-form .btn {
+    width: 100%;
+  }
+  .ask-teacher-panel {
+    scroll-margin-bottom: 320px;
+  }
+}
+
 .ask-teacher-form input {
   flex: 1;
 }

@@ -5,3 +5,10 @@ app/build/
 .idea/
 *.iml
 .kotlin/
+
+# 서명 키 · 시크릿 — 절대 커밋 금지
+release.keystore
+*.jks
+keystore.properties
+appdistribution.properties
+google-services.json

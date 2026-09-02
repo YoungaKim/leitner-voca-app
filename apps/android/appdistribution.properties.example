@@ -1,0 +1,3 @@
+# 복사해서 appdistribution.properties 로 만들고 appId 를 채우세요.
+appId=1:000000000000:android:0000000000000000
+groups=testers

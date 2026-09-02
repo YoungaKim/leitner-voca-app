@@ -26,6 +26,17 @@ export default function AskTeacherPanel({ card, model, onClose, onAnswered }: Pr
     inputRef.current?.focus();
   }, []);
 
+  // 모바일: 키보드가 올라오면 '질문하기' 버튼이 키보드에 가려지므로,
+  // 입력창 포커스 시 패널 전체를 화면 안쪽으로 끌어올린다.
+  function scrollPanelIntoView() {
+    // 키보드 애니메이션이 끝난 뒤 위치가 확정되도록 약간 지연.
+    setTimeout(() => {
+      inputRef.current
+        ?.closest(".ask-teacher-panel")
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 300);
+  }
+
   async function handleAsk(e: React.FormEvent) {
     e.preventDefault();
     if (!question.trim() || loading) return;
@@ -61,6 +72,8 @@ export default function AskTeacherPanel({ card, model, onClose, onAnswered }: Pr
           placeholder="이 문장에 대해 궁금한 점을 물어보세요"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
+          onFocus={scrollPanelIntoView}
+          enterKeyHint="send"
           disabled={loading}
         />
         <button className="btn primary" type="submit" disabled={loading || !question.trim()}>
