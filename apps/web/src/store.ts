@@ -54,6 +54,7 @@ interface AppState {
   syncContentNow(): Promise<void>;
 
   addDeck(name: string, description?: string, examDate?: string | null): Promise<Deck>;
+  renameDeck(id: string, name: string): Promise<void>;
   deleteDeck(id: string): Promise<void>;
   addCard(input: {
     deckId: string;
@@ -183,6 +184,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ decks: [...s.decks, deck] }));
     mirrorToCloud((userId) => pushDeck(userId, deck));
     return deck;
+  },
+
+  async renameDeck(id, name) {
+    const trimmed = name.trim();
+    const existing = get().decks.find((d) => d.id === id);
+    if (!trimmed || !existing || trimmed === existing.name) return;
+    const updated: Deck = { ...existing, name: trimmed, updatedAt: new Date().toISOString() };
+    await deckRepo.put(updated);
+    set((s) => ({ decks: s.decks.map((d) => (d.id === id ? updated : d)) }));
+    mirrorToCloud((userId) => pushDeck(userId, updated));
   },
 
   async deleteDeck(id) {

@@ -14,12 +14,31 @@ export default function DecksPage() {
   const cards = useAppStore((s) => s.cards);
   const newPool = useAppStore((s) => s.newPool);
   const addDeck = useAppStore((s) => s.addDeck);
+  const renameDeck = useAppStore((s) => s.renameDeck);
   const deleteDeck = useAppStore((s) => s.deleteDeck);
   const [name, setName] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
 
-  async function handleDelete(id: string, deckName: string) {
-    if (!confirm(`"${deckName}" 단어장을 삭제할까요? 이 덱의 카드와 저수지 항목이 전부 지워지고 되돌릴 수 없습니다.`)) return;
+  async function handleDelete(id: string, deckName: string, hasContent: boolean) {
+    if (hasContent && !confirm(`"${deckName}" 단어장을 삭제하면 학습 내용이 사라집니다. 삭제하시겠습니까?`)) return;
     await deleteDeck(id);
+  }
+
+  function startEdit(id: string, currentName: string) {
+    setEditingId(id);
+    setEditName(currentName);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditName("");
+  }
+
+  async function handleRename(e: React.FormEvent, id: string) {
+    e.preventDefault();
+    await renameDeck(id, editName);
+    cancelEdit();
   }
 
   const deckStats = useMemo(() => {
@@ -72,11 +91,45 @@ export default function DecksPage() {
       <ul className="deck-list">
         {decks.map((deck) => {
           const stat = deckStats.get(deck.id) ?? { total: 0, onBox: 0, pool: 0, boxCounts: Array(7).fill(0) };
+          if (editingId === deck.id) {
+            return (
+              <li key={deck.id} className="deck-item">
+                <form className="inline-form deck-edit-form" onSubmit={(e) => handleRename(e, deck.id)}>
+                  <input
+                    autoFocus
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Escape" && cancelEdit()}
+                    required
+                  />
+                  <button className="btn primary" type="submit" disabled={!editName.trim()}>
+                    저장
+                  </button>
+                  <button className="btn ghost" type="button" onClick={cancelEdit}>
+                    취소
+                  </button>
+                </form>
+              </li>
+            );
+          }
           return (
             <li key={deck.id} className="deck-item">
               <Link to={`/decks/${deck.id}`} className="deck-link">
                 <div className="deck-row-top">
                   <span className="deck-name">{deck.name}</span>
+                  <button
+                    type="button"
+                    className="deck-name-edit"
+                    aria-label="단어장 이름 수정"
+                    title="이름 수정"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      startEdit(deck.id, deck.name);
+                    }}
+                  >
+                    ✏️
+                  </button>
                   <span className="deck-count">
                     총 {stat.total} · 박스 진행 {stat.onBox} · 대기(pool) {stat.pool}
                   </span>
@@ -102,7 +155,10 @@ export default function DecksPage() {
                   </div>
                 )}
               </Link>
-              <button className="btn ghost deck-delete" onClick={() => handleDelete(deck.id, deck.name)}>
+              <button
+                className="btn ghost deck-delete"
+                onClick={() => handleDelete(deck.id, deck.name, stat.total > 0)}
+              >
                 삭제
               </button>
             </li>
