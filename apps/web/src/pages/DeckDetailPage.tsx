@@ -1,7 +1,7 @@
 // UXUI §3.4 덱 상세(카드 목록) + 카드 추가 폼.
 // 수동 CSV 파일 업로드는 스펙 아웃(2026-08-26) — 콘텐츠 소스는 구글시트 자동 동기화(설정
 // 화면, 2d)로 단일화. 이 화면엔 "설정으로 가서 시트 동기화" 안내만 남긴다.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { Card } from "@leitner/core";
 import { useAppStore } from "../store";
@@ -44,6 +44,15 @@ export default function DeckDetailPage() {
     });
     setEditingId(null);
   }
+
+  // 카드가 많으면 목록이 길어져 "카드 추가" 폼까지 내려간 뒤 맨 위로 돌아가기 번거로움 → 스크롤 시 노출되는 위로가기 버튼.
+  const [showToTop, setShowToTop] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setShowToTop(window.scrollY > 400);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const [search, setSearch] = useState("");
   const [boxFilter, setBoxFilter] = useState<string>("전체");
@@ -167,6 +176,17 @@ export default function DeckDetailPage() {
       <p className="muted" style={{ marginTop: "1.5rem" }}>
         문장을 대량으로 채우려면 파일 업로드 대신 <Link to="/settings">설정에서 구글시트 동기화</Link>를 등록하세요.
       </p>
+
+      {showToTop && (
+        <button
+          type="button"
+          className="btn to-top"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="맨 위로"
+        >
+          ↑ 맨 위로
+        </button>
+      )}
     </div>
   );
 }
