@@ -79,6 +79,7 @@ export interface Settings {
   refillThresholdDays: number; // 기본 3
   ttsAutoPlay: boolean;
   preferredAiModel: "claude" | "gemini" | "gpt"; // 기본 claude — DESIGN §6, '선생님한테 질문' 기능에서 사용할 모델
+  aiApiKeys?: { claude?: string; gemini?: string; gpt?: string }; // DESIGN §6 — 모델별 사용자 API 키. 서버 공용 키 대신 이 값이 있으면 그걸로 호출.
   updatedAt?: string; // 2a 클라우드 동기화 LWW 기준(DESIGN §3.7). 로컬 전용일 땐 없어도 됨.
 }
 
@@ -94,6 +95,7 @@ export const DEFAULT_SETTINGS: Settings = {
   refillThresholdDays: 3,
   ttsAutoPlay: false,
   preferredAiModel: "claude",
+  aiApiKeys: {},
 };
 
 export const GRADUATED_BOX = 7;

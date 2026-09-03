@@ -15,6 +15,8 @@ interface CardContext {
   promptKo: string;
   answerEn: string;
   chunkNote?: string;
+  /** 학습자가 이번 카드에서 직접 입력한 영어 답안(있을 때만). 첨삭 요청에 쓰인다. */
+  userAnswer?: string;
 }
 
 function buildPrompt(question: string, context: CardContext): string {
@@ -24,9 +26,15 @@ function buildPrompt(question: string, context: CardContext): string {
     `- 한글 제시문: ${context.promptKo}`,
     `- 영어 정답 문장: ${context.answerEn}`,
     context.chunkNote ? `- 청크·문법 메모: ${context.chunkNote}` : null,
+    context.userAnswer
+      ? `- 학습자가 이번에 직접 입력한 답안: ${context.userAnswer}`
+      : null,
     "",
     `학습자의 질문: ${question}`,
     "",
+    context.userAnswer
+      ? '학습자가 "내 답변 수정해줘", "내 답은 틀려?" 같은 요청을 하면, 위의 "학습자가 직접 입력한 답안"을 기준으로 첨삭하세요. 정답 문장과 비교해 무엇이 맞고 무엇이 틀렸는지, 어떻게 고치면 되는지 구체적으로 짚어 주세요.'
+      : null,
     "이 카드 맥락에 맞춰 한국어로 간결하고 명확하게 답변하세요.",
   ]
     .filter((line) => line !== null)
@@ -106,7 +114,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { model, question, context } = await req.json();
+    const { model, question, context, apiKey: userApiKey } = await req.json();
 
     if (model !== "claude" && model !== "gemini" && model !== "gpt") {
       return new Response(JSON.stringify({ error: "model은 'claude', 'gemini', 'gpt' 중 하나여야 합니다." }), {
@@ -127,14 +135,19 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // 사용자가 설정에서 입력한 모델별 API 키가 오면 그걸 우선 사용하고, 없으면 서버 공용 시크릿으로 fallback.
     const secretName =
       model === "claude" ? "ANTHROPIC_API_KEY" : model === "gemini" ? "GEMINI_API_KEY" : "OPENAI_API_KEY";
-    const apiKey = Deno.env.get(secretName);
+    const apiKey =
+      (typeof userApiKey === "string" && userApiKey.trim()) || Deno.env.get(secretName);
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: `서버에 ${secretName}가 설정돼있지 않습니다.` }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: `${model} API 키가 없습니다. 설정에서 직접 입력하거나 서버에 ${secretName}를 설정하세요.` }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const answer =

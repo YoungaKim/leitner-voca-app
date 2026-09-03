@@ -65,9 +65,13 @@ create table if not exists settings (
   auto_sync_enabled boolean not null default false,
   refill_threshold_days int not null default 3,
   tts_auto_play boolean not null default false,
-  preferred_ai_model text not null default 'claude', -- DESIGN §6, '선생님한테 질문' 기능에서 사용할 모델(claude|gemini)
+  preferred_ai_model text not null default 'claude', -- DESIGN §6, '선생님한테 질문' 기능에서 사용할 모델(claude|gemini|gpt)
+  ai_api_keys jsonb not null default '{}'::jsonb, -- DESIGN §6, 모델별 사용자 API 키 { claude?, gemini?, gpt? }. RLS로 본인 행만 접근.
   updated_at timestamptz not null default now()
 );
+
+-- 기존 프로젝트 마이그레이션(테이블이 이미 있을 때 컬럼만 추가)
+alter table settings add column if not exists ai_api_keys jsonb not null default '{}'::jsonb;
 
 -- sync_state  (사용자당 1행) -------------------------------------------
 create table if not exists sync_state (

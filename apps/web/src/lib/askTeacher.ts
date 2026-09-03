@@ -7,6 +7,8 @@ export interface AskTeacherContext {
   promptKo: string;
   answerEn: string;
   chunkNote?: string;
+  /** 학습자가 이번 카드에서 직접 입력한 영어 답안(있을 때만). 선생님이 이걸 알고 첨삭할 수 있게 함. */
+  userAnswer?: string;
 }
 
 export type AiModel = "claude" | "gemini" | "gpt";
@@ -14,14 +16,16 @@ export type AiModel = "claude" | "gemini" | "gpt";
 export async function askTeacher(
   model: AiModel,
   question: string,
-  context: AskTeacherContext
+  context: AskTeacherContext,
+  apiKey?: string
 ): Promise<string> {
   if (!supabase) {
     throw new Error("이 기능은 클라우드 로그인 상태에서만 사용할 수 있어요.");
   }
 
+  // apiKey가 있으면 서버 공용 키 대신 사용자 키로 호출한다(DESIGN §6). 없으면 서버 시크릿 fallback.
   const { data, error } = await supabase.functions.invoke("ask-teacher-proxy", {
-    body: { model, question, context },
+    body: { model, question, context, apiKey: apiKey?.trim() || undefined },
   });
 
   if (error) {

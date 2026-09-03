@@ -20,6 +20,35 @@ export default function SettingsPage() {
   const [maxActiveCards, setMaxActiveCards] = useState(String(settings.maxActiveCards));
 
   const [aiModelSaved, setAiModelSaved] = useState(false);
+  const [aiKey, setAiKey] = useState(settings.aiApiKeys?.[settings.preferredAiModel] ?? "");
+  const [aiKeySaved, setAiKeySaved] = useState(false);
+
+  const AI_MODEL_LABELS: Record<"gemini" | "claude" | "gpt", string> = {
+    gemini: "Gemini (무료)",
+    claude: "Claude (유료)",
+    gpt: "ChatGPT (유료)",
+  };
+  const AI_KEY_HELP: Record<
+    "gemini" | "claude" | "gpt",
+    { url: string; linkLabel: string; note: string }
+  > = {
+    gemini: {
+      url: "https://aistudio.google.com/apikey",
+      linkLabel: "aistudio.google.com/apikey 바로가기",
+      note: "무료로 발급받아 입력하세요.",
+    },
+    claude: {
+      url: "https://console.anthropic.com/settings/keys",
+      linkLabel: "console.anthropic.com 바로가기",
+      note: "발급에 결제수단 등록이 필요합니다. 비워두면 앱 공용 키를 씁니다.",
+    },
+    gpt: {
+      url: "https://platform.openai.com/api-keys",
+      linkLabel: "platform.openai.com 바로가기",
+      note: "발급에 선불 크레딧이 필요합니다. 비워두면 앱 공용 키를 씁니다.",
+    },
+  };
+  const aiKeyHelp = AI_KEY_HELP[settings.preferredAiModel];
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -47,8 +76,20 @@ export default function SettingsPage() {
 
   async function handleChangeAiModel(model: "claude" | "gemini" | "gpt") {
     await updateSettings({ preferredAiModel: model });
+    setAiKey(settings.aiApiKeys?.[model] ?? "");
+    setAiKeySaved(false);
     setAiModelSaved(true);
     setTimeout(() => setAiModelSaved(false), 1500);
+  }
+
+  async function handleSaveAiKey(e: React.FormEvent) {
+    e.preventDefault();
+    const model = settings.preferredAiModel;
+    await updateSettings({
+      aiApiKeys: { ...settings.aiApiKeys, [model]: aiKey.trim() || undefined },
+    });
+    setAiKeySaved(true);
+    setTimeout(() => setAiKeySaved(false), 1500);
   }
 
   return (
@@ -87,21 +128,46 @@ export default function SettingsPage() {
 
       <h3>AI 선생님</h3>
       <p className="muted">
-        학습 세션의 [선생님한테 질문] 기능에 사용할 모델을 선택하세요. API 키는 앱이 서버에서 관리하므로
-        직접 입력할 필요는 없습니다.
+        학습 세션의 [선생님한테 질문] 기능에 사용할 모델을 고르고, 그 모델의 API 키를 입력하세요. 키는 본인
+        계정에만 저장되며(다른 기기에서도 공유), 질문할 때마다 서버 프록시를 거쳐 해당 API로 전달됩니다.
+        키를 비워두면 앱 공용 키로 동작합니다.
       </p>
-      <label className="field-row">
-        모델
-        <select
-          value={settings.preferredAiModel}
-          onChange={(e) => handleChangeAiModel(e.target.value as "claude" | "gemini" | "gpt")}
-        >
-          <option value="claude">Claude</option>
-          <option value="gemini">Gemini</option>
-          <option value="gpt">GPT</option>
-        </select>
-      </label>
-      {aiModelSaved && <p className="muted">저장됨 ✓ (선택하면 즉시 저장돼요, 별도 저장 버튼 없음)</p>}
+      <form className="card-form ai-form" onSubmit={handleSaveAiKey}>
+        <label>
+          모델
+          <select
+            value={settings.preferredAiModel}
+            onChange={(e) => handleChangeAiModel(e.target.value as "claude" | "gemini" | "gpt")}
+          >
+            <option value="gemini">{AI_MODEL_LABELS.gemini}</option>
+            <option value="claude">{AI_MODEL_LABELS.claude}</option>
+            <option value="gpt">{AI_MODEL_LABELS.gpt}</option>
+          </select>
+        </label>
+        {aiModelSaved && <p className="muted field-hint">모델 저장됨 ✓</p>}
+
+        <label>
+          {AI_MODEL_LABELS[settings.preferredAiModel]} API 키
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="API 키 입력 (비우면 앱 공용 키 사용)"
+            value={aiKey}
+            onChange={(e) => setAiKey(e.target.value)}
+          />
+        </label>
+        <p className="muted field-hint">
+          <a href={aiKeyHelp.url} target="_blank" rel="noreferrer">
+            {aiKeyHelp.linkLabel} ↗
+          </a>
+          {" — "}
+          {aiKeyHelp.note}
+        </p>
+        <button className="btn primary" type="submit">
+          키 저장
+        </button>
+        {aiKeySaved && <p className="muted field-hint">저장됨 ✓</p>}
+      </form>
 
       <h3>발음(TTS)</h3>
       <p className="muted">

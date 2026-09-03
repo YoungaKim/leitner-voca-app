@@ -1,5 +1,6 @@
 // DESIGN §3.4 시트 스키마 고정: id | 한글 문장 | 영어 문장 | 청크·문법 메모 | level | topic | added_at
-// MVP는 수동 CSV 가져오기만 지원(§3.3~3.8 자동 시트 동기화는 이번 범위 제외).
+// 이 파서는 content-sync-proxy가 Sheets API 값을 CSV 텍스트로 변환해 돌려준 것을 파싱하는 데 쓴다
+// (contentSync.ts). 수동 CSV 파일 업로드 UI는 스펙 아웃(2026-08-26) — 콘텐츠 소스는 구글시트 자동 동기화로 단일화.
 import type { NewPoolItem } from "@leitner/core";
 
 export interface ParsedCsvRow {

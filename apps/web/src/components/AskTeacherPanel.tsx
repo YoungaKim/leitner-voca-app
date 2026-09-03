@@ -7,6 +7,10 @@ import { askTeacher, type AiModel } from "../lib/askTeacher";
 interface Props {
   card: Card;
   model: AiModel;
+  /** 학습자가 이번 카드에 입력한 답안. 넘기면 선생님이 그 답을 알고 첨삭해준다. */
+  userAnswer?: string;
+  /** 선택된 모델의 사용자 API 키(설정에서 입력). 없으면 서버 공용 키로 fallback(DESIGN §6). */
+  apiKey?: string;
   onClose: () => void;
   /** 답변(성공/실패 모두)을 받은 직후 호출 — 부모가 포커스를 채점 버튼으로 되돌리는 데 쓴다.
    * 안 넘겨주면 질문/답변 후 포커스가 이 패널 안에 남아, 정답 화면의 Enter 채점 단축키가
@@ -14,7 +18,7 @@ interface Props {
   onAnswered?: () => void;
 }
 
-export default function AskTeacherPanel({ card, model, onClose, onAnswered }: Props) {
+export default function AskTeacherPanel({ card, model, userAnswer, apiKey, onClose, onAnswered }: Props) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,11 +48,17 @@ export default function AskTeacherPanel({ card, model, onClose, onAnswered }: Pr
     setError(null);
     setAnswer(null);
     try {
-      const result = await askTeacher(model, question.trim(), {
-        promptKo: card.promptKo,
-        answerEn: card.answerEn,
-        chunkNote: card.chunkNote,
-      });
+      const result = await askTeacher(
+        model,
+        question.trim(),
+        {
+          promptKo: card.promptKo,
+          answerEn: card.answerEn,
+          chunkNote: card.chunkNote,
+          userAnswer: userAnswer?.trim() || undefined,
+        },
+        apiKey
+      );
       setAnswer(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -69,7 +79,11 @@ export default function AskTeacherPanel({ card, model, onClose, onAnswered }: Pr
       <form onSubmit={handleAsk} className="ask-teacher-form">
         <input
           ref={inputRef}
-          placeholder="이 문장에 대해 궁금한 점을 물어보세요"
+          placeholder={
+            userAnswer?.trim()
+              ? "예: 내 답변 수정해줘 / 내 답은 왜 틀렸어?"
+              : "이 문장에 대해 궁금한 점을 물어보세요"
+          }
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           onFocus={scrollPanelIntoView}

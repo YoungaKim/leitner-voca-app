@@ -204,6 +204,7 @@ Settings
   contentSourceUrl, autoSyncEnabled, refillThresholdDays(기본 3)
   ttsAutoPlay(on/off)
   preferredAiModel(claude|gemini|gpt, 기본 claude)   ← §6, '선생님한테 질문' 기능에서 사용할 모델
+  aiApiKeys{claude?,gemini?,gpt?}   ← §6, 모델별 사용자 API 키(입력 시 서버 공용 키 대신 사용)
 ```
 
 ### 2.1 Supabase 스키마 (동기화 대상) **[확정]**
@@ -251,7 +252,9 @@ settings (
   user_id uuid pk fk, intervals int[], daily_goal int, review_cap int, new_cap int, max_active_cards int,
   lapse_mode text, hint_free_level int, notify_time time,
   recovery_ease boolean, content_source_url text, auto_sync_enabled boolean,
-  refill_threshold_days int, tts_auto_play boolean, updated_at timestamptz
+  refill_threshold_days int, tts_auto_play boolean,
+  preferred_ai_model text, ai_api_keys jsonb default '{}',  -- §6 모델별 사용자 API 키
+  updated_at timestamptz
 )
 ```
 
@@ -289,22 +292,28 @@ create policy "own rows only" on cards
 ```
 소비 속도 기준 적응형.
 
-### 3.3 동기화 방식 = B · 게시 구글 시트 CSV URL **[확정]**
+### 3.3 동기화 방식 = 구글시트 공유 링크 + 서버 프록시(Sheets API) **[확정]**
+
+> **변경 이력:** 원안은 "웹에 게시 > CSV" 고정 URL을 앱이 직접 fetch하는 방식이었으나, 구글이 서버·브라우저 IP의 pub CSV 요청을 안티스크래핑성으로 자주 차단(pubhtml 뷰어 페이지로 응답)해 실사용 불가로 판명. → **평범한 공유/편집 링크**를 받아 **Supabase Edge Function `content-sync-proxy`가 공식 Google Sheets API(v4)로 읽어** CSV 텍스트로 변환해 돌려주는 구조로 교체. "웹에 게시"는 더 이상 쓰지 않는다.
 
 ```
 [교사/사용자 생성] → 구글 시트에 문장 append
-       │  (파일 > 공유 > 웹에 게시 > CSV → 고정 URL)
+       │  (공유 > 일반 액세스 > "링크가 있는 모든 사용자 = 뷰어" → /d/{ID}/edit 링크 복사)
        ▼
-[게시 CSV URL] ──(앱 실행 시 / 하루 1회 fetch)──▶ [폰 앱]
-       │                                          │
-       └── 새 id 행만 → NewPool로 흡수 ───────────┘
+[구글시트 공유 링크] ──(앱 실행 시 / 하루 1회)──▶ [Edge Function: content-sync-proxy]
+       │                                              │  Sheets API v4 (GOOGLE_SHEETS_API_KEY)
+       │                                              ▼
+       │                                        [CSV 텍스트] ──▶ [앱]
+       └── 새 id 행만 → NewPool로 흡수 ────────────────────────────┘
                     │
             저수지 → 매일 newCap → 박스1 → 라이트너 순환
                     │
             저수지 < 임계 → 보충 알림
 ```
 
-- 진실의 원천 = 게시된 시트 1개. 앱은 읽기 전용 소비자, 인증 불필요.
+- 진실의 원천 = 공유된 시트 1개. **클라이언트는 인증 불필요**(모델을 URL 문자열 하나만 넘김) — 실제 읽기는 Edge Function이 `GOOGLE_SHEETS_API_KEY` 시크릿으로 수행한다.
+- 시트는 "링크가 있는 모든 사용자(뷰어)" 공유가 필수(API 키만으로 읽으려면 필요). "웹에 게시" 설정과는 무관.
+- 로컬 전용 모드(비로그인, `supabase == null`)에선 프록시를 못 쓰므로 콘텐츠 동기화 불가 — 이 소스는 클라우드 계정 전제.
 
 ### 3.4 시트 스키마 (열 고정)
 
@@ -321,7 +330,7 @@ id | 한글 문장 | 영어 문장 | 청크·문법 메모 | level | topic | add
 
 ### 3.6 최초 설정 & 운영
 
-- **설정(1회):** 시트 생성+헤더 → `웹에 게시 > CSV` → URL 복사 → 앱 설정 등록 → [동기화 테스트].
+- **설정(1회):** 시트 생성+헤더 → `공유 > 일반 액세스 > 링크가 있는 모든 사용자(뷰어)` → `/d/{ID}/edit` 링크 복사 → 앱 설정(§Settings `contentSourceUrl` + 대상 덱) 등록 → [지금 동기화].
 - **운영:** 평소 무개입 자동 흡수 → 저수지 낮으면 알림 → 배치 추가.
 
 ### 3.7 기기 간 동기화(필수)
@@ -337,15 +346,15 @@ id | 한글 문장 | 영어 문장 | 청크·문법 메모 | level | topic | add
 - **중앙 동기화 서버**: 카드 상태(Box/nextReviewDate), 학습 로그, 설정, 덱 메타데이터는 클라우드에서 관리.
 - **콘텐츠 원천은 여전히 구글 시트**: 문장 데이터는 시트 → 앱 동기화 → 로컬 저장. 사용자는 폰/PC 어디서나 같은 문제를 보게 된다.
 - **충돌 해결**: 같은 카드에 양쪽에서 동시에 수정한 경우 마지막 작성 시각이 최신인 값으로 우선(LWW). 두 기기가 동시에 오프라인 학습할 확률은 낮아 우선 이 단순 규칙으로 시작하고, 실사용 중 데이터 꼬임이 관찰되면 필드별 병합(예: box는 더 낮은 값 우선 등 보수적 규칙)으로 정교화한다. 리뷰 로그는 append-only로 누적되어 항상 사후 복구 가능.
-- **첫 로그인**: Google 계정으로 1회 로그인 후 모든 기기에서 재사용(Supabase Auth의 Google OAuth 사용). 콘텐츠 동기화(§3.3, 게시 CSV)는 별도로 인증이 필요 없는 별개 체계 — "콘텐츠 읽기"와 "내 진행 상태 저장"은 서로 다른 인증 레벨임에 유의.
+- **첫 로그인**: Google 계정으로 1회 로그인 후 모든 기기에서 재사용(Supabase Auth의 Google OAuth 사용). 콘텐츠 동기화(§3.3)는 사용자 인증과는 별개 체계 — 클라이언트는 로그인만 돼 있으면 되고(프록시 호출용), 시트 읽기 권한은 서버 시크릿 `GOOGLE_SHEETS_API_KEY` + 시트의 "뷰어" 공유로 해결. "콘텐츠 읽기"와 "내 진행 상태 저장"은 서로 다른 인증 레벨임에 유의.
 
 ### 3.8 구현 주의점
 
 - `id` 기준 dedupe.
-- 게시 CSV 반영 몇 분 지연 가능 → [지금 동기화] 수동 버튼.
+- Sheets API는 시트 저장 즉시 반영되지만, 흡수 트리거는 앱 시작 시 하루 1회 → 즉시 반영이 필요하면 [지금 동기화] 수동 버튼.
 - 오프라인/URL 오류 시 조용히 스킵 후 재시도(로컬 우선).
 - 기기 간 동기화는 익명 사용자 대신 **개인 계정 1개**를 기준으로 운영. 같은 계정이면 폰/PC가 같은 덱을 보고 같은 큐를 계산한다.
-- 프라이버시: "웹에 게시"=URL 아는 사람 열람 가능(문장이라 무방, 비공개 필요 시 드라이브 OAuth로 승급).
+- 프라이버시: 시트를 "링크가 있는 모든 사용자(뷰어)"로 공유 → 링크 아는 사람은 열람 가능(문장이라 무방, 비공개 필요 시 드라이브 OAuth로 승급).
 
 ### 3.9 진행 상태 동기화 트리거 (Supabase push/pull 시점) **[확정]**
 
@@ -414,7 +423,7 @@ id | 한글 문장 | 영어 문장 | 청크·문법 메모 | level | topic | add
 1. 데이터 레이어(Room 엔티티: Deck/Card/NewPool/SyncState/ReviewLog/Settings)
 2. **라이트너 스케줄러(§1)를 순수 함수로** — 유닛 테스트 먼저(정답 승급 / 오답 강등 / 힌트 fail / 큐 정렬 / maxActiveCards 상한 도달 시 신규 0 / D-day 클램프)
 3. 학습 화면(생산 + 힌트) → 홈 → 덱 관리 → 세션 요약
-4. CSV 가져오기 → 게시 시트 동기화(§3) → 보충 알림
+4. 구글시트 공유 링크 동기화(§3, 서버 프록시 경유) → 보충 알림
 5. 통계 → 시험 대비 모드
 * 04-PLAN.md 문서 참조 
 
@@ -422,7 +431,9 @@ id | 한글 문장 | 영어 문장 | 청크·문법 메모 | level | topic | add
 
 ## 6. AI 질문 프록시 ("선생님한테 질문")
 
-학습 중 막히는 카드에 대해 자유 질문을 던지면 AI(Claude/Gemini/GPT 중 선택)가 답하는 기능. **1회성 Q&A**(질문 1개 → 답변 1개, 대화 히스토리 저장 없음)이며, API 키는 사용자가 아니라 앱(서버)이 관리한다.
+학습 중 막히는 카드에 대해 자유 질문을 던지면 AI(Gemini 무료 / Claude 유료 / ChatGPT 유료 중 선택)가 답하는 기능. **1회성 Q&A**(질문 1개 → 답변 1개, 대화 히스토리 저장 없음).
+
+**API 키 = 사용자별 입력 우선, 앱 공용 키 fallback.** 설정 화면에서 `preferredAiModel`을 고르면 그 모델의 API 키 입력란이 나타난다. 입력한 키는 `Settings.aiApiKeys[model]`에 저장돼 계정 단위로 기기 간 동기화되며(settings 테이블 `ai_api_keys` jsonb, RLS로 본인만 접근), 질문 시 프록시 요청 body에 실려 그 키로 상위 API를 호출한다. 키를 비워두면 기존대로 Edge Function 시크릿(`ANTHROPIC_API_KEY` 등)으로 fallback. → 가족 등 다른 사용자에게 앱을 공유해도 각자 자기 키(특히 무료인 Gemini)로 쓰면 앱 소유자에게 API 비용이 전가되지 않는다.
 
 **방식 — 서버 프록시 + 앱 관리 키**, `supabase/functions/content-sync-proxy`와 동일한 패턴의 새 Edge Function을 둔다.
 
@@ -439,8 +450,8 @@ id | 한글 문장 | 영어 문장 | 청크·문법 메모 | level | topic | add
 { answer: string }  또는  { error: string } + status code
 ```
 
-- **요청**: `{ model: "claude" | "gemini" | "gpt", question: string, context: { promptKo, answerEn, chunkNote? } }`
+- **요청**: `{ model: "claude" | "gemini" | "gpt", question: string, context: { promptKo, answerEn, chunkNote? }, apiKey?: string }`
 - **응답**: 성공 시 `{ answer: string }`, 실패 시 `{ error: string }` + 4xx/5xx (키 미설정 500, 잘못된 `model` 값 400, 상위 API 실패 502 등 — `content-sync-proxy`의 에러 응답 스타일을 따른다).
-- **키 관리**: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`를 Supabase Edge Function 시크릿으로 등록. 클라이언트(웹)는 키를 전혀 알지 못하고, 어떤 모델을 쓸지만 `Settings.preferredAiModel`(§2, 설정 화면에서 선택)로 전달한다.
+- **키 관리**: 요청 `apiKey`(사용자가 설정에 입력, `Settings.aiApiKeys[model]`)가 있으면 그 키로 호출. 없으면 Supabase Edge Function 시크릿(`ANTHROPIC_API_KEY` / `GEMINI_API_KEY` / `OPENAI_API_KEY`)으로 fallback. 사용자 키는 저장·로그하지 않고 그 요청에서만 상위 API로 넘긴다.
 - **범위 제한**: 대화 히스토리는 저장하지 않는다. 매 질문은 현재 카드 컨텍스트를 새로 포함한 독립 요청이며, 멀티턴 채팅 UI는 두지 않는다(§PRD 비목표).
 - **오류 시 사용자 경험**: 키 미설정/네트워크 실패 시 학습 흐름 자체를 막지 않고, 질문 패널 안에서만 에러 메시지를 보여준다(§UXUI §4).

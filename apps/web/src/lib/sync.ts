@@ -116,6 +116,7 @@ function settingsToRow(userId: string, s: Settings) {
     refill_threshold_days: s.refillThresholdDays,
     tts_auto_play: s.ttsAutoPlay,
     preferred_ai_model: s.preferredAiModel,
+    ai_api_keys: s.aiApiKeys ?? {},
     updated_at: s.updatedAt ?? nowIso(),
   };
 }
@@ -134,6 +135,7 @@ function rowToSettings(r: any): Settings {
     refillThresholdDays: r.refill_threshold_days,
     ttsAutoPlay: r.tts_auto_play,
     preferredAiModel: r.preferred_ai_model ?? "claude",
+    aiApiKeys: r.ai_api_keys ?? {},
     updatedAt: r.updated_at,
   };
 }

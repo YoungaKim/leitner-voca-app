@@ -348,6 +348,27 @@ select {
   width: 100px;
 }
 
+/* AI 선생님: 라벨 위 / 컨트롤 아래로 세로 정렬, 컨트롤은 폼 너비에 맞춤 */
+.ai-form label {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.3rem;
+  color: #e8eaed;
+}
+
+.ai-form select,
+.ai-form input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ai-form .field-hint {
+  margin: 0.1rem 0 0.3rem;
+  font-size: 0.85rem;
+}
+
 .sync-status {
   margin-top: 1rem;
 }

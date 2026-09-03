@@ -356,6 +356,8 @@ export default function StudySessionPage() {
               <AskTeacherPanel
                 card={current}
                 model={settings.preferredAiModel}
+                userAnswer={userText}
+                apiKey={settings.aiApiKeys?.[settings.preferredAiModel]}
                 onClose={() => {
                   setShowAskTeacher(false);
                   focusRecommendedGradeButton();

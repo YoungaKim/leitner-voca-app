@@ -18,9 +18,10 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.time.Instant
 
-// 2d — PC 웹 lib/contentSync.ts 포팅. 게시된 구글시트를 Supabase Edge Function(content-sync-proxy,
-// PC 웹과 동일한 함수를 그대로 재사용)으로 읽어와 새 id만 저수지로 흡수한다. dedupe는 계정 전체
-// 범위(어느 덱이든 이미 카드/저수지에 있거나 syncState.importedIds에 있으면 스킵) — PC와 동일 규칙.
+// 2d — PC 웹 lib/contentSync.ts 포팅. 구글시트 공유 링크(/d/{ID}/edit)를 Supabase Edge Function
+// (content-sync-proxy, PC 웹과 동일한 함수를 그대로 재사용 — 프록시가 Sheets API v4로 읽어 CSV로 변환)
+// 으로 읽어와 새 id만 저수지로 흡수한다. dedupe는 계정 전체 범위(어느 덱이든 이미 카드/저수지에
+// 있거나 syncState.importedIds에 있으면 스킵) — PC와 동일 규칙.
 
 /** 계정 전체 범위(덱 무관) dedupe 키 집합. */
 fun accountWideImportedIds(cards: List<Card>, newPool: List<NewPoolItem>, syncState: SyncState): Set<String> {
