@@ -126,15 +126,17 @@ buildTodayQueue():
           (2) nextReviewDate 오름차순  # 오래 밀린 것 먼저
     # 세션당 분량 상한은 없다 — 오늘 기한이 된 복습은 전부 큐에 넣는다.
 
-    leftoverNew = cards where box == 0 AND due       # 채점 못 끝낸 신규 잔류
-    여력 = dailyGoal - due.size - leftoverNew.size
+    leftoverNew = cards where box == 0 AND due          # 채점 못 끝낸 신규 잔류
+    reviewedToday = count(cards where lastReviewedAt == today)  # 오늘 이미 채점한 수
+    여력 = dailyGoal - reviewedToday - due.size - leftoverNew.size
     newCards = pullFromNewPool(min(여력, newCap - leftoverNew.size))   # §3 신규 저수지에서
     return due + leftoverNew + newCards
 ```
 
 - **복습 > 신규 우선** (밀린 복습 폭발 방지).
 - **낮은 박스 우선** — "칸이 여러 개 찼을 때 뭐부터?"의 답. 낮은 칸일수록 잊기 직전 + 비워야 위로 흐름.
-- **세션당 상한 없음** — 오늘 due는 전부 큐에 담고, 사용자가 원하는 만큼 풀다 닫으면 남은 건 다음에 다시 잡힌다. `dailyGoal`은 완료 표시·진척도의 기준이자 신규 유입 억제 기준일 뿐, 복습 개수를 자르지 않는다. (구 `reviewCap` 파라미터 폐기.)
+- **세션당 상한 없음** — 오늘 due는 전부 큐에 담고, 사용자가 원하는 만큼 풀다 닫으면 남은 건 다음에 다시 잡힌다. `dailyGoal`은 복습 개수를 자르지 않고, **신규 유입만** 억제한다. (구 `reviewCap` 파라미터 폐기.)
+- **신규 억제 기준 = "오늘 하루 학습 부하"** — `오늘 채점한 수 + 남은 due + 박스0 잔류`가 `dailyGoal`을 넘으면 신규 0. 오늘 채점 수를 포함하므로, due가 `dailyGoal`을 넘겨 밀린 날은 그 due를 다 풀어도 신규가 새로 생기지 않는다(예전엔 "남은 due"만 봐서 due를 비우면 신규가 다시 들어왔음).
 
 ### 1.5 신규 도입 · 밀린 카드 · 파라미터
 
@@ -151,10 +153,11 @@ buildTodayQueue():
     정렬: (1) box 오름차순 (2) nextReviewDate 오름차순
     # 세션당 분량 상한 없음 — due 전부 유지
 
-    leftoverNew = cards where box == 0 AND due       # 채점 못 끝낸 신규 잔류
-    activeCount = count(cards where box < 7)          # 박스0~6 누적 총량
-    여력 = min(dailyGoal - due.size - leftoverNew.size, maxActiveCards - activeCount)
-    newBudget = newCap - leftoverNew.size             # 박스0 잔류분도 "오늘의 신규"로 카운트
+    leftoverNew = cards where box == 0 AND due          # 채점 못 끝낸 신규 잔류
+    reviewedToday = count(cards where lastReviewedAt == today)
+    activeCount = count(cards where box < 7)            # 박스0~6 누적 총량
+    여력 = min(dailyGoal - reviewedToday - due.size - leftoverNew.size, maxActiveCards - activeCount)
+    newBudget = newCap - leftoverNew.size               # 박스0 잔류분도 "오늘의 신규"로 카운트
     newCards = pullFromNewPool(max(0, min(여력, newBudget)))
     return due + leftoverNew + newCards
 ```

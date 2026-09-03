@@ -17,6 +17,7 @@ private fun makeCard(
     correctStreak: Int = 2,
     lapseCount: Int = 0,
     introducedAt: String = "2026-08-01",
+    lastReviewedAt: String? = "2026-08-16",
 ): Card = Card(
     id = id,
     deckId = "d1",
@@ -24,7 +25,7 @@ private fun makeCard(
     answerEn = "Smartphones are ubiquitous.",
     box = box,
     nextReviewDate = nextReviewDate,
-    lastReviewedAt = "2026-08-16",
+    lastReviewedAt = lastReviewedAt,
     correctStreak = correctStreak,
     lapseCount = lapseCount,
     introducedAt = introducedAt,
@@ -159,6 +160,19 @@ class SchedulerTest {
         val pool = listOf(NewPoolItem(id = "p1", deckId = "d1", promptKo = "x", answerEn = "y", importedAt = "2026-08-01"))
         val queue = buildTodayQueue(cards, pool, settings, "2026-08-24")
         assertTrue(queue.newFromPool.isEmpty())
+    }
+
+    @Test
+    fun `오늘 이미 채점한 카드가 dailyGoal을 넘겼으면 due를 다 비워도 신규가 안 생긴다`() {
+        val cards = (0 until 35).map {
+            makeCard(id = "d$it", box = 2, nextReviewDate = "2026-09-01", lastReviewedAt = "2026-08-24")
+        }
+        val pool = (0 until 10).map {
+            NewPoolItem(id = "p$it", deckId = "d1", promptKo = "x", answerEn = "y", importedAt = "2026-08-01")
+        }
+        val queue = buildTodayQueue(cards, pool, settings, "2026-08-24")
+        assertTrue(queue.due.isEmpty())
+        assertTrue(queue.newFromPool.isEmpty()) // 30 - 35 < 0
     }
 
     @Test

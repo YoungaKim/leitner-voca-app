@@ -122,9 +122,16 @@ export function buildTodayQueue(
   const activeCount = cards.filter((c) => c.box < GRADUATED_BOX).length;
   const roomUnderActiveCap = Math.max(0, settings.maxActiveCards - activeCount);
 
-  // 신규 유입 억제: 오늘 복습 부하(due + 박스0 잔류)가 하루 목표를 넘으면 신규는 0.
-  // 복습을 목표치 밑으로 소화하면 그만큼 신규가 다시 들어온다.
-  const capacity = Math.max(0, settings.dailyGoal - due.length - leftoverNew.length);
+  // 신규 유입 억제: "오늘 하루 학습 부하"가 dailyGoal을 넘으면 신규는 0.
+  //   부하 = 오늘 이미 채점한 카드 수 + 아직 남은 due + 박스0 잔류
+  // 오늘 채점 수까지 포함하므로, due가 dailyGoal을 넘겨 밀린 날은 그 due를 다 풀어도
+  // (남은 due는 0이 돼도 채점 수가 목표를 넘겨서) 신규가 새로 생기지 않는다.
+  // lastReviewedAt은 onAnswer가 채점 시 todayStr로 세팅한다(박스0 잔류는 아직 null이라 겹치지 않음).
+  const reviewedToday = cards.filter((c) => c.lastReviewedAt === todayStr).length;
+  const capacity = Math.max(
+    0,
+    settings.dailyGoal - reviewedToday - due.length - leftoverNew.length
+  );
   // newCap은 "오늘 학습에 들어오는 신규 카드 수"의 상한 — 아직 채점 못 끝낸 박스0 잔류분도
   // 신규로 쳐서 함께 제한한다(안 그러면 세션을 시작만 하고 안 끝낼 때마다 신규가 계속 불어남).
   const newBudget = Math.max(0, settings.newCap - leftoverNew.length);

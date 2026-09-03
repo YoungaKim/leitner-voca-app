@@ -229,6 +229,19 @@ describe("buildTodayQueue — 정렬·상한", () => {
     expect(newFromPool).toHaveLength(0);
   });
 
+  it("오늘 이미 채점한 카드가 dailyGoal을 넘겼으면 due를 다 비워도 신규가 안 생긴다", () => {
+    // dailyGoal 30. 오늘 이미 35개 채점(lastReviewedAt=오늘, nextReviewDate는 미래라 due 아님) → 남은 due 0.
+    const cards = Array.from({ length: 35 }, (_, i) =>
+      makeCard({ id: `d${i}`, box: 2, nextReviewDate: "2026-09-01", lastReviewedAt: "2026-08-24" })
+    );
+    const pool = Array.from({ length: 10 }, (_, i) => ({
+      id: `p${i}`, deckId: "d1", promptKo: "x", answerEn: "y", status: "pending" as const, importedAt: "2026-08-01",
+    }));
+    const { due, newFromPool } = buildTodayQueue(cards, pool, settings, "2026-08-24");
+    expect(due).toHaveLength(0);
+    expect(newFromPool).toHaveLength(0); // 30 - 35 < 0
+  });
+
   it("maxActiveCards 상한에 도달하면 여력이 있어도 신규를 넣지 않는다", () => {
     // 박스1~6(미졸업) 카드가 이미 상한만큼 있음 → due는 0이어도 신규 유입은 0이어야 함.
     const cards = Array.from({ length: 150 }, (_, i) =>
