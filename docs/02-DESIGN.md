@@ -126,9 +126,10 @@ buildTodayQueue():
           (2) nextReviewDate 오름차순  # 오래 밀린 것 먼저
     # 세션당 분량 상한은 없다 — 오늘 기한이 된 복습은 전부 큐에 넣는다.
 
-    여력 = dailyGoal - due.size
-    newCards = pullFromNewPool(min(여력, newCap))   # §3 신규 저수지에서
-    return due + newCards
+    leftoverNew = cards where box == 0 AND due       # 채점 못 끝낸 신규 잔류
+    여력 = dailyGoal - due.size - leftoverNew.size
+    newCards = pullFromNewPool(min(여력, newCap - leftoverNew.size))   # §3 신규 저수지에서
+    return due + leftoverNew + newCards
 ```
 
 - **복습 > 신규 우선** (밀린 복습 폭발 방지).
@@ -150,12 +151,15 @@ buildTodayQueue():
     정렬: (1) box 오름차순 (2) nextReviewDate 오름차순
     # 세션당 분량 상한 없음 — due 전부 유지
 
-    activeCount = count(cards where box < 7)          # 박스1~6 누적 총량
-    여력 = min(dailyGoal - due.size, maxActiveCards - activeCount)
-    newCards = pullFromNewPool(max(0, min(여력, newCap)))
-    return due + newCards
+    leftoverNew = cards where box == 0 AND due       # 채점 못 끝낸 신규 잔류
+    activeCount = count(cards where box < 7)          # 박스0~6 누적 총량
+    여력 = min(dailyGoal - due.size - leftoverNew.size, maxActiveCards - activeCount)
+    newBudget = newCap - leftoverNew.size             # 박스0 잔류분도 "오늘의 신규"로 카운트
+    newCards = pullFromNewPool(max(0, min(여력, newBudget)))
+    return due + leftoverNew + newCards
 ```
 
+- `newCap`은 "오늘 학습에 들어오는 신규 카드 수" 상한이며, 세션을 시작만 하고 채점을 안 끝내 박스0에 남은 잔류분도 여기에 포함해 센다(안 그러면 세션을 열었다 닫을 때마다 신규가 계속 불어남).
 - `activeCount`가 `maxActiveCards`에 도달하면 신규는 자동 0 → 정체 상태에서 더 이상 부하가 커지지 않고, 기존 카드가 졸업(box=7)하며 빠져야 다시 신규가 들어옴.
 - 기본값 150은 `dailyGoal=30` 기준 대략 5일치 버퍼 — 실사용 중 정체 빈도 보고 조정.
 - **밀린 카드:** 기한 지난 카드는 오래 밀린 것부터 큐 앞쪽에 배치. 한 번에 다 풀 필요는 없고 나눠 앉아 소화하면 된다.

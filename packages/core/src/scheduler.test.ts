@@ -199,6 +199,19 @@ describe("buildTodayQueue — 정렬·상한", () => {
     expect(newFromPool).toHaveLength(0);
   });
 
+  it("박스0 잔류 신규도 newCap에 포함해 신규 도입을 제한한다", () => {
+    // newCap 8, 박스0 잔류 5개 → 신규는 3개까지만 추가로 도입.
+    const cards = Array.from({ length: 5 }, (_, i) =>
+      makeCard({ id: `n${i}`, box: 0, nextReviewDate: "2026-08-24" })
+    );
+    const pool = Array.from({ length: 20 }, (_, i) => ({
+      id: `p${i}`, deckId: "d1", promptKo: "x", answerEn: "y", status: "pending" as const, importedAt: "2026-08-01",
+    }));
+    const { leftoverNew, newFromPool } = buildTodayQueue(cards, pool, settings, "2026-08-24");
+    expect(leftoverNew).toHaveLength(5);
+    expect(newFromPool).toHaveLength(3); // 8 - 5
+  });
+
   it("오늘 기한이 된 복습은 상한 없이 전부 큐에 넣는다", () => {
     const cards = Array.from({ length: 120 }, (_, i) =>
       makeCard({ id: `c${i}`, box: 1, nextReviewDate: "2026-08-24" })

@@ -89,7 +89,10 @@ fun buildTodayQueue(
     // 신규 유입 억제: 오늘 복습 부하(due + 박스0 잔류)가 하루 목표를 넘으면 신규는 0.
     // 복습을 목표치 밑으로 소화하면 그만큼 신규가 다시 들어온다.
     val capacity = maxOf(0, settings.dailyGoal - due.size - leftoverNew.size)
-    val newFromPool = newPool.take(minOf(capacity, minOf(settings.newCap, roomUnderActiveCap)))
+    // newCap은 "오늘 학습에 들어오는 신규 카드 수" 상한 — 아직 채점 못 끝낸 박스0 잔류분도
+    // 신규로 쳐서 함께 제한한다(세션을 시작만 하고 안 끝낼 때마다 신규가 불어나는 것 방지).
+    val newBudget = maxOf(0, settings.newCap - leftoverNew.size)
+    val newFromPool = newPool.take(minOf(capacity, minOf(newBudget, roomUnderActiveCap)))
 
     return TodayQueue(due, leftoverNew, newFromPool)
 }

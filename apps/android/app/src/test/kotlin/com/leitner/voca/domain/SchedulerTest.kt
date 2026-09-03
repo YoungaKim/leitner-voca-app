@@ -136,6 +136,17 @@ class SchedulerTest {
     }
 
     @Test
+    fun `박스0 잔류 신규도 newCap에 포함해 신규 도입을 제한한다`() {
+        val cards = (0 until 5).map { makeCard(id = "n$it", box = 0, nextReviewDate = "2026-08-24") }
+        val pool = (0 until 20).map {
+            NewPoolItem(id = "p$it", deckId = "d1", promptKo = "x", answerEn = "y", importedAt = "2026-08-01")
+        }
+        val queue = buildTodayQueue(cards, pool, settings, "2026-08-24")
+        assertEquals(5, queue.leftoverNew.size)
+        assertEquals(3, queue.newFromPool.size) // newCap 8 - 잔류 5
+    }
+
+    @Test
     fun `오늘 기한이 된 복습은 상한 없이 전부 큐에 넣는다`() {
         val cards = (0 until 120).map { makeCard(id = "c$it", box = 1, nextReviewDate = "2026-08-24") }
         val queue = buildTodayQueue(cards, emptyList(), settings, "2026-08-24")
