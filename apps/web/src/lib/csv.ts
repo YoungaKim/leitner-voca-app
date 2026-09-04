@@ -1,4 +1,5 @@
-// DESIGN §3.4 시트 스키마 고정: id | 한글 문장 | 영어 문장 | 청크·문법 메모 | level | topic | added_at
+// DESIGN §3.4 시트 스키마: id | 한글 문장 | 영어 문장 | 청크·문법 메모 | level | topic | added_at
+// id 열은 선택 — 없으면 문장 내용 해시(contentId)로 안정적인 dedupe 키를 만든다.
 // 이 파서는 content-sync-proxy가 Sheets API 값을 CSV 텍스트로 변환해 돌려준 것을 파싱하는 데 쓴다
 // (contentSync.ts). 수동 CSV 파일 업로드 UI는 스펙 아웃(2026-08-26) — 콘텐츠 소스는 구글시트 자동 동기화로 단일화.
 import type { NewPoolItem } from "@leitner/core";
@@ -20,6 +21,20 @@ const HEADER_MAP: Record<string, keyof ParsedCsvRow> = {
   level: "level",
   topic: "topic",
 };
+
+// 시트에 id 열이 없거나 특정 행의 id 칸이 비어 있을 때 쓰는 폴백. 랜덤 uuid를 붙이면 매
+// 동기화마다 "새 id"가 되어 전체가 다시 흡수되므로(중복 방지 키가 id다, §3.4), 문장 내용
+// (한글+영어)에서 결정적으로 해시를 만들어 안정적인 id로 삼는다. 시트에서 문장을 고치면
+// 그 행은 새 항목으로 취급된다(id를 바꾼 것과 동일) — 사소한 오타 수정 시 유의.
+function contentId(promptKo: string, answerEn: string): string {
+  const s = `${promptKo}${answerEn}`;
+  let h = 0x811c9dc5; // FNV-1a 32bit
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return `h${(h >>> 0).toString(36)}`;
+}
 
 /** 아주 단순한 CSV 파서. 셀 안에 콤마가 있을 경우를 대비해 큰따옴표 인용을 지원한다. */
 function parseCsvLine(line: string): string[] {
@@ -70,7 +85,7 @@ export function parseCsv(text: string): CsvParseResult {
   });
 
   const errors: string[] = [];
-  if (fieldIndex.id === undefined) errors.push('필수 열 "id"가 없습니다.');
+  // id 열은 선택 — 없으면 문장 내용 해시로 안정적 id를 생성한다(contentId).
   if (fieldIndex.promptKo === undefined) errors.push('필수 열 "한글 문장"이 없습니다.');
   if (fieldIndex.answerEn === undefined) errors.push('필수 열 "영어 문장"이 없습니다.');
   if (errors.length > 0) {
@@ -85,13 +100,14 @@ export function parseCsv(text: string): CsvParseResult {
   const rows: ParsedCsvRow[] = [];
   for (let i = 1; i < lines.length; i++) {
     const cells = parseCsvLine(lines[i]);
-    const id = cells[fieldIndex.id!];
     const promptKo = cells[fieldIndex.promptKo!];
     const answerEn = cells[fieldIndex.answerEn!];
-    if (!id || !promptKo || !answerEn) {
-      errors.push(`${i + 1}행: id/한글 문장/영어 문장이 비어 있어 건너뜀`);
+    if (!promptKo || !answerEn) {
+      errors.push(`${i + 1}행: 한글 문장/영어 문장이 비어 있어 건너뜀`);
       continue;
     }
+    const rawId = fieldIndex.id !== undefined ? cells[fieldIndex.id] : undefined;
+    const id = rawId && rawId.length > 0 ? rawId : contentId(promptKo, answerEn);
     rows.push({
       id,
       promptKo,

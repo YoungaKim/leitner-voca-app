@@ -16,8 +16,11 @@ create table if not exists decks (
 );
 
 -- cards  (핵심 동기화 대상: box/nextReviewDate가 자주 바뀜) -----------
+-- id는 text — 저수지(new_pool) 항목을 카드로 승격할 때 카드 id = pool.id(시트 id 또는
+-- 문장 내용 해시)를 그대로 쓴다. 이래야 웹/안드로이드/여러 기기가 같은 문장을 각각 승격해도
+-- id가 같아 동기화 병합(mergeByUpdatedAt)이 하나로 합친다. (수기 추가 카드는 uuid 문자열.)
 create table if not exists cards (
-  id uuid primary key,
+  id text primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
   deck_id uuid not null references decks(id) on delete cascade,
   source_id text,
@@ -86,7 +89,8 @@ create table if not exists sync_state (
 create table if not exists review_log (
   id uuid primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
-  card_id uuid not null,
+  card_id text not null, -- cards.id 와 동일 타입(text)
+
   date date not null,
   result text not null,
   box_before int not null,

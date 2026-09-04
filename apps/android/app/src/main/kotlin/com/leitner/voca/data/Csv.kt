@@ -3,7 +3,23 @@ package com.leitner.voca.data
 import com.leitner.voca.domain.NewPoolItem
 import java.time.Instant
 
-// PC 웹 lib/csv.ts 포팅 — DESIGN §3.4 시트 스키마 고정: id | 한글 문장 | 영어 문장 | 청크·문법 메모 | level | topic | added_at
+// PC 웹 lib/csv.ts 포팅 — DESIGN §3.4 시트 스키마: id | 한글 문장 | 영어 문장 | 청크·문법 메모 | level | topic | added_at
+// id 열은 선택 — 없거나 칸이 비면 문장 내용 해시(contentId)로 안정적인 dedupe 키를 만든다.
+
+// 시트에 id 열이 없거나 특정 행의 id 칸이 비었을 때 쓰는 폴백. 랜덤 uuid를 붙이면 매
+// 동기화마다 "새 id"가 되어 전체가 다시 흡수되므로(중복 방지 키가 id다, §3.4), 문장 내용
+// (한글+영어)에서 결정적으로 해시를 만들어 안정적인 id로 삼는다. PC 웹 lib/csv.ts의
+// contentId와 완전히 동일한 FNV-1a 32bit 계산이라 같은 문장이면 웹/안드로이드가 같은 id를 낸다.
+// (시트에서 문장을 고치면 그 행은 새 id → 새 항목이 된다 — id 변경과 동일.)
+internal fun contentId(promptKo: String, answerEn: String): String {
+    val s = promptKo + answerEn
+    var h = 0x811c9dc5.toInt() // FNV-1a offset basis
+    for (ch in s) {
+        h = h xor ch.code       // JS charCodeAt(i) == UTF-16 code unit (한글은 BMP라 동일)
+        h *= 0x01000193         // Int*Int는 하위 32bit로 wrap → JS Math.imul과 동일
+    }
+    return "h" + (h.toLong() and 0xFFFFFFFFL).toString(36)
+}
 
 data class ParsedCsvRow(
     val id: String,
@@ -64,7 +80,7 @@ fun parseCsv(text: String): CsvParseResult {
     headers.forEachIndexed { i, h -> HEADER_MAP[h]?.let { fieldIndex[it] = i } }
 
     val errors = mutableListOf<String>()
-    if ("id" !in fieldIndex) errors.add("필수 열 \"id\"가 없습니다.")
+    // id 열은 선택 — 없으면 문장 내용 해시로 안정적 id를 생성한다(contentId).
     if ("promptKo" !in fieldIndex) errors.add("필수 열 \"한글 문장\"이 없습니다.")
     if ("answerEn" !in fieldIndex) errors.add("필수 열 \"영어 문장\"이 없습니다.")
     if (errors.isNotEmpty()) {
@@ -77,11 +93,13 @@ fun parseCsv(text: String): CsvParseResult {
     for (i in 1 until lines.size) {
         val cells = parseCsvLine(lines[i])
         fun cell(key: String): String? = fieldIndex[key]?.let { cells.getOrNull(it) }
-        val id = cell("id"); val promptKo = cell("promptKo"); val answerEn = cell("answerEn")
-        if (id.isNullOrEmpty() || promptKo.isNullOrEmpty() || answerEn.isNullOrEmpty()) {
-            errors.add("${i + 1}행: id/한글 문장/영어 문장이 비어 있어 건너뜀")
+        val promptKo = cell("promptKo"); val answerEn = cell("answerEn")
+        if (promptKo.isNullOrEmpty() || answerEn.isNullOrEmpty()) {
+            errors.add("${i + 1}행: 한글 문장/영어 문장이 비어 있어 건너뜀")
             continue
         }
+        val rawId = cell("id")
+        val id = if (!rawId.isNullOrEmpty()) rawId else contentId(promptKo, answerEn)
         rows.add(
             ParsedCsvRow(
                 id = id, promptKo = promptKo, answerEn = answerEn,

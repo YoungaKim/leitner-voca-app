@@ -26,6 +26,7 @@ class AuthViewModel(private val authRepo: AuthRepository, private val appRepo: A
     val error: StateFlow<String?> = _error
 
     private var syncedUserId: String? = null
+    private var syncing = false
 
     fun signIn(context: Context) {
         if (_signingIn.value) return
@@ -55,9 +56,24 @@ class AuthViewModel(private val authRepo: AuthRepository, private val appRepo: A
     fun onAuthenticated(userId: String) {
         if (syncedUserId == userId) return
         syncedUserId = userId
+        runMergeFromCloud(userId)
+    }
+
+    /** DESIGN §3.9 — 진행 상태(카드/box 등) pull은 "앱 시작 또는 포그라운드 복귀 시 1회".
+     * onAuthenticated는 로그인 시점 1회뿐이라, 앱이 계속 로그인된 채로 백그라운드↔포그라운드만
+     * 오가면(로그인 이벤트가 다시 안 일어나므로) 다른 기기(PC)에서 바뀐 내용이 안 보인다 —
+     * 화면이 다시 보일 때(ON_RESUME)마다 이걸 불러 재당김한다. */
+    fun onResumed(userId: String) {
+        runMergeFromCloud(userId)
+    }
+
+    private fun runMergeFromCloud(userId: String) {
+        if (syncing) return
+        syncing = true
         viewModelScope.launch {
             runCatching { appRepo.mergeFromCloud(userId) }
                 .onFailure { _error.value = "동기화 실패: ${it.message}" }
+            syncing = false
         }
     }
 }

@@ -101,6 +101,22 @@ describe("박스0 — DESIGN §1.3b 신규 카드 초기 도입", () => {
     expect(card.nextReviewDate).toBe("2026-08-24");
   });
 
+  it("introduceFromPool은 카드 id·sourceId를 pool.id로 고정한다 — 같은 저수지 항목을 어느 기기에서 승격해도 같은 카드가 되어(동기화 병합) 중복이 안 생긴다", () => {
+    const pool = {
+      id: "sheet-42",
+      deckId: "d1",
+      promptKo: "x",
+      answerEn: "y",
+      status: "pending" as const,
+      importedAt: "2026-08-01",
+    };
+    const a = introduceFromPool(pool, "2026-08-24");
+    const b = introduceFromPool(pool, "2026-09-01"); // 다른 날, 다른 기기라고 가정
+    expect(a.id).toBe("sheet-42");
+    expect(a.sourceId).toBe("sheet-42");
+    expect(b.id).toBe(a.id); // 결정적 — 랜덤 uuid 아님
+  });
+
   it("box:0 카드는 정답이든 오답이든 onAnswer 결과가 항상 박스1로 착지한다", () => {
     const newCard = makeCard({ box: 0, correctStreak: 0, lapseCount: 0 });
 

@@ -190,4 +190,14 @@ class SchedulerTest {
     fun `시험 당일이어도 최소 1일은 보장한다`() {
         assertEquals(1, applyExamCompression(3, settings.intervals, 0))
     }
+
+    @Test
+    fun `introduceFromPool은 카드 id sourceId를 pool_id로 고정한다 - 어느 기기에서 승격해도 같은 카드가 되어 동기화 병합 시 중복이 안 생긴다`() {
+        val pool = NewPoolItem(id = "sheet-42", deckId = "d1", promptKo = "x", answerEn = "y", importedAt = "2026-08-01")
+        val a = introduceFromPool(pool, "2026-08-24")
+        val b = introduceFromPool(pool, "2026-09-01") // 다른 날, 다른 기기 가정
+        assertEquals("sheet-42", a.id)
+        assertEquals("sheet-42", a.sourceId)
+        assertEquals(a.id, b.id) // 결정적 — 랜덤 uuid 아님
+    }
 }

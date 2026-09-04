@@ -6,6 +6,7 @@ import {
   NEW_CARD_BOX,
   buildTodayQueue,
   diffWords,
+  introduceFromPool,
   isCorrect,
   matchesAnswer,
   onAnswer,
@@ -83,21 +84,10 @@ export default function StudySessionPage() {
     (async () => {
       const introduced: Card[] = [];
       for (const pool of newFromPool) {
-        const card: Card = {
-          id: uuid(),
-          deckId: pool.deckId,
-          sourceId: pool.id,
-          promptKo: pool.promptKo,
-          answerEn: pool.answerEn,
-          chunkNote: pool.chunkNote,
-          box: NEW_CARD_BOX,
-          nextReviewDate: todayStr(),
-          lastReviewedAt: null,
-          correctStreak: 0,
-          lapseCount: 0,
-          introducedAt: todayStr(),
-          tags: [],
-        };
+        // 카드 id = pool.id (introduceFromPool). 랜덤 uuid를 쓰면 같은 저수지 항목이 두 기기
+        // (또는 웹/안드로이드)에서 각각 승격될 때 id가 달라 중복 카드가 남는다 — id가 pool.id면
+        // 어디서 승격하든 같은 id라 클라우드 병합(mergeByUpdatedAt)이 하나로 합친다.
+        const card = introduceFromPool(pool, todayStr());
         await introduceCard(card, pool.id);
         introduced.push(card);
       }

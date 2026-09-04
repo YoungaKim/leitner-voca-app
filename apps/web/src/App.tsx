@@ -43,6 +43,25 @@ export default function App() {
     });
   }, [mergeFromCloud]);
 
+  // DESIGN §3.9 — 진행 상태(카드/box 등) pull은 "앱 시작 또는 포그라운드 복귀 시 1회".
+  // 로그인 시점 pull만으론 탭을 계속 열어둔 채 다른 기기에서 바뀐 내용(예: PC에서 추가한
+  // 카드)이 안 보인다 — 탭이 다시 보일 때마다 재당김한다. 학습 세션 중엔 큐가 로컬 상태로
+  // 진행 중이라 건너뛴다(진행 중 카드 목록이 바뀌는 걸 막기 위함).
+  const inSessionRef = useRef(inSession);
+  useEffect(() => {
+    inSessionRef.current = inSession;
+  }, [inSession]);
+  useEffect(() => {
+    if (!user) return;
+    function onVisible() {
+      if (document.visibilityState !== "visible" || inSessionRef.current) return;
+      if (useAppStore.getState().syncing) return;
+      mergeFromCloud(user!.id);
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [user, mergeFromCloud]);
+
   // 2d §3.3: 앱 실행 시 하루 1회 자동 동기화(콘텐츠 소스 URL이 등록돼있고 자동 동기화가 켜져있으면).
   useEffect(() => {
     if (!loaded) return;

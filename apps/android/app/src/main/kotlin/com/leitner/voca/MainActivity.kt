@@ -13,17 +13,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.leitner.voca.ui.AppViewModel
 import com.leitner.voca.ui.AuthViewModel
@@ -54,10 +60,16 @@ class MainActivity : ComponentActivity() {
 
                     when (val s = session) {
                         is SessionStatus.Authenticated -> {
-                            LaunchedEffect(s.session.user?.id) {
-                                s.session.user?.id?.let(authViewModel::onAuthenticated)
+                            val userId = s.session.user?.id
+                            LaunchedEffect(userId) {
+                                userId?.let(authViewModel::onAuthenticated)
                             }
-                            AuthenticatedApp(app, onSignOut = authViewModel::signOut)
+                            AuthenticatedApp(
+                                app = app,
+                                userId = userId,
+                                onResumed = authViewModel::onResumed,
+                                onSignOut = authViewModel::signOut,
+                            )
                         }
                         else -> {
                             LoginScreen(loading = signingIn, error = error, onSignIn = { authViewModel.signIn(context) })
@@ -70,12 +82,36 @@ class MainActivity : ComponentActivity() {
 }
 
 @androidx.compose.runtime.Composable
-private fun AuthenticatedApp(app: VocaApplication, onSignOut: () -> Unit) {
+private fun AuthenticatedApp(
+    app: VocaApplication,
+    userId: String?,
+    onResumed: (String) -> Unit,
+    onSignOut: () -> Unit,
+) {
     val viewModel: AppViewModel = viewModel(
         factory = viewModelFactory { initializer { AppViewModel(app.repository) } },
     )
     val state by viewModel.uiState.collectAsState()
     val navController = rememberNavController()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val inSession = backStackEntry?.destination?.route == "session"
+
+    // DESIGN §3.9 — 진행 상태 pull은 "앱 시작 또는 포그라운드 복귀 시 1회". 로그인 시점
+    // 1회만으론, 앱을 계속 로그인해둔 채 백그라운드↔포그라운드만 오가면(다시 로그인 이벤트가
+    // 안 일어나므로) PC에서 방금 추가한 카드 등이 안 보인다 — 화면 복귀 때마다 재당김.
+    // 학습 세션 중엔 큐가 로컬 상태로 진행 중이라 건너뛴다(진행 중 카드 목록이 바뀌는 것 방지).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val inSessionState = rememberUpdatedState(inSession)
+    val userIdState = rememberUpdatedState(userId)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && !inSessionState.value) {
+                userIdState.value?.let(onResumed)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     if (!state.loaded) {
         Text("불러오는 중...")
