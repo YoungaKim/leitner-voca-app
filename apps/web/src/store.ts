@@ -98,6 +98,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   async mergeFromCloud(userId) {
     set({ syncing: true });
     try {
+      // 로컬(IndexedDB) 로드가 끝나기 전에 이게 먼저 돌면 get()이 DEFAULT_SETTINGS를
+      // 돌려주고, fullSync의 LWW가 "local.updatedAt 없음 → remote 채택"으로 빠져 방금까지
+      // 쓰던 설정(모델 선택·시트 URL 등)이 원격 기본값으로 덮여버린다. 반드시 먼저 로드한다.
+      if (!get().loaded) await get().load();
+
       // 이 브라우저에 마지막으로 로그인했던 계정과 다르면, 이전 계정의 로컬 캐시가
       // 새 계정 데이터와 섞이거나(심지어 클라우드로 push까지 돼) 계정 간 데이터가 오염되므로
       // 병합 전에 로컬을 완전히 비운다.
