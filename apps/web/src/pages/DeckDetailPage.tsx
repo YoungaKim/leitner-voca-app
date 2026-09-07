@@ -228,22 +228,25 @@ export default function DeckDetailPage() {
                   handleSaveEdit(c);
                 }}
               >
-                <input
+                <textarea
                   placeholder="한글 문장(제시)"
                   value={editPromptKo}
                   onChange={(e) => setEditPromptKo(e.target.value)}
+                  rows={2}
                   required
                 />
-                <input
+                <textarea
                   placeholder="영어 문장(정답)"
                   value={editAnswerEn}
                   onChange={(e) => setEditAnswerEn(e.target.value)}
+                  rows={2}
                   required
                 />
-                <input
+                <textarea
                   placeholder="청크·문법 메모(선택)"
                   value={editChunkNote}
                   onChange={(e) => setEditChunkNote(e.target.value)}
+                  rows={2}
                 />
                 <div className="card-edit-actions">
                   <button

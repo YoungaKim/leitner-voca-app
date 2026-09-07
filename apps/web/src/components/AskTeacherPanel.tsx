@@ -81,7 +81,7 @@ export default function AskTeacherPanel({ card, model, userAnswer, apiKey, onClo
           ref={inputRef}
           placeholder={
             userAnswer?.trim()
-              ? "예: 내 답변 수정해줘 / 내 답은 왜 틀렸어?"
+              ? "'?'만 입력하면 내 답 첨삭 / 또는 궁금한 점을 물어보세요"
               : "이 문장에 대해 궁금한 점을 물어보세요"
           }
           value={question}

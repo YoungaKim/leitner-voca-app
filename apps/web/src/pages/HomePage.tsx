@@ -5,7 +5,7 @@
 // "전체 상자 대비 이 박스에 카드가 얼마나 몰려있는지"를 형태로 직관 전달한다.
 // 칸 위 숫자는 절대 개수, %는 채움 높이와 반드시 같은 기준(가장 많은 박스=100%)이어야
 // "칸은 꽉 차 보이는데 %는 낮다" 같은 모순이 안 생긴다. 빈 박스는 점선 테두리만.
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { GRADUATED_BOX, NEW_CARD_BOX, buildTodayQueue, today as todayStr } from "@leitner/core";
 import { useAppStore } from "../store";
@@ -57,6 +57,42 @@ export default function HomePage() {
     `신규 ${queueNewCount}`,
     ...dueByBox.map((n, i) => (n > 0 ? `박스${i + 1} ${n}` : null)).filter(Boolean),
   ].join(" · ");
+
+  // "오늘 목표"는 큐 잔량(계속 변함)이 아니라 하루 1회 고정한 숫자로 보여준다.
+  // 그날 처음 홈을 열 때 (지금 남은 오늘치 + 오늘 이미 채점한 수)를 스냅샷해 localStorage에 저장,
+  // 자정 지나 날짜가 바뀌면 다시 스냅샷. 완료 수(오늘 채점한 카드)는 단조 증가라 흔들리지 않는다.
+  // lastReviewedAt은 로컬 채점 직후엔 "YYYY-MM-DD"지만 클라우드(timestamptz) 왕복 후엔
+  // "YYYY-MM-DDTHH:mm:ss+00:00"로 돌아온다 — 앞 10자만 비교해 둘 다 처리.
+  const reviewedToday = useMemo(
+    () => cards.filter((c) => (c.lastReviewedAt ?? "").slice(0, 10) === todayStr()).length,
+    [cards]
+  );
+  const [dayGoal, setDayGoal] = useState<number | null>(null);
+  useEffect(() => {
+    const t = todayStr();
+    let saved: { date: string; total: number } | null = null;
+    try {
+      const raw = localStorage.getItem("dayGoal");
+      saved = raw ? JSON.parse(raw) : null;
+    } catch {
+      /* 비공개 모드 등 — 스냅샷 없이 진행 */
+    }
+    if (saved && saved.date === t) {
+      setDayGoal(saved.total);
+      return;
+    }
+    const total = dueToday.length + queueNewCount + reviewedToday;
+    try {
+      localStorage.setItem("dayGoal", JSON.stringify({ date: t, total }));
+    } catch {
+      /* 저장 실패해도 이번 세션 값은 아래 setDayGoal로 유지 */
+    }
+    setDayGoal(total);
+    // 마운트 시 1회만(날짜가 바뀌면 새로고침으로 다시 평가됨). deps 의도적으로 비움.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const goalTotal = dayGoal ?? todayCount + reviewedToday;
+  const goalPct = Math.min(100, Math.round((reviewedToday / Math.max(1, goalTotal)) * 100));
   const newCount = cards.filter((c) => c.box === NEW_CARD_BOX).length;
   const mastered = cards.filter((c) => c.box === GRADUATED_BOX).length;
   const boxCounts = Array.from({ length: 6 }, (_, i) =>
@@ -189,9 +225,14 @@ export default function HomePage() {
 
       {todayCount > 0 ? (
         <section className="cta">
-          <div className="cta-number">오늘 복습할 카드 {todayCount}개</div>
+          <div className="cta-number">
+            오늘 목표 {goalTotal}개 · 완료 {reviewedToday}개
+          </div>
+          <div className="cta-progress" aria-hidden>
+            <i style={{ width: `${goalPct}%` }} />
+          </div>
           <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem", marginBottom: 12 }}>
-            {queueBreakdown}
+            남은 큐 {todayCount}개 · {queueBreakdown}
           </div>
           <Link className="btn primary large" to="/session">
             학습 시작
@@ -199,7 +240,10 @@ export default function HomePage() {
         </section>
       ) : (
         <section className="cta">
-          <div className="cta-number">오늘 복습 끝! 🎉</div>
+          <div className="cta-number">오늘 목표 달성! 🎉</div>
+          <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem" }}>
+            오늘 {reviewedToday}개 학습 완료
+          </div>
           <Link className="btn secondary" to="/decks">
             단어장 관리
           </Link>

@@ -19,7 +19,13 @@ interface CardContext {
   userAnswer?: string;
 }
 
+/** "?", "??", "?????" 처럼 물음표(전각 포함)·공백만 있는 입력 → 답안 첨삭 요청으로 해석한다. */
+function isBareCorrectionRequest(question: string): boolean {
+  return /^[?？\s]+$/.test(question);
+}
+
 function buildPrompt(question: string, context: CardContext): string {
+  const bareCorrection = isBareCorrectionRequest(question);
   return [
     "당신은 토익 문장 암기 학습자를 돕는 영어 선생님입니다.",
     "아래는 학습자가 방금 풀던 문장 카드입니다.",
@@ -30,9 +36,16 @@ function buildPrompt(question: string, context: CardContext): string {
       ? `- 학습자가 이번에 직접 입력한 답안: ${context.userAnswer}`
       : null,
     "",
-    `학습자의 질문: ${question}`,
+    bareCorrection
+      ? '학습자가 물음표만 입력했습니다. 이는 "내 답이 왜 틀렸는지 설명하고 첨삭해 달라"는 뜻입니다.'
+      : `학습자의 질문: ${question}`,
     "",
-    context.userAnswer
+    bareCorrection && context.userAnswer
+      ? '위의 "학습자가 직접 입력한 답안"을 정답 문장과 단어 단위로 비교하세요. (1) 무엇이 틀렸고 왜 틀렸는지, (2) 맞은 부분, (3) 고친 문장을 순서대로 짚어 주세요. 틀린 곳이 없으면 정답이라고 알려 주세요.'
+      : bareCorrection
+        ? "학습자가 입력한 답안 정보가 없습니다. 정답 문장의 핵심 문법·표현 포인트를 짚어 설명해 주세요."
+        : null,
+    !bareCorrection && context.userAnswer
       ? '학습자가 "내 답변 수정해줘", "내 답은 틀려?" 같은 요청을 하면, 위의 "학습자가 직접 입력한 답안"을 기준으로 첨삭하세요. 정답 문장과 비교해 무엇이 맞고 무엇이 틀렸는지, 어떻게 고치면 되는지 구체적으로 짚어 주세요.'
       : null,
     "이 카드 맥락에 맞춰 한국어로 간결하고 명확하게 답변하세요.",

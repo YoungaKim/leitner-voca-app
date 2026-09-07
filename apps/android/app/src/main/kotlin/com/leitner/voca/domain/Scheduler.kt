@@ -90,7 +90,9 @@ fun buildTodayQueue(
     //   부하 = 오늘 이미 채점한 카드 수 + 아직 남은 due + 박스0 잔류
     // 오늘 채점 수까지 포함하므로, due가 dailyGoal을 넘겨 밀린 날은 그 due를 다 풀어도 신규가 안 생긴다.
     // lastReviewedAt은 onAnswer가 채점 시 todayStr로 세팅한다(박스0 잔류는 아직 null이라 겹치지 않음).
-    val reviewedToday = cards.count { it.lastReviewedAt == todayStr }
+    // lastReviewedAt은 채점 직후엔 "YYYY-MM-DD"지만 클라우드(timestamptz) 왕복 후엔
+    // "YYYY-MM-DDT..."로 돌아온다 — 앞 10자만 비교.
+    val reviewedToday = cards.count { (it.lastReviewedAt ?: "").take(10) == todayStr }
     val capacity = maxOf(0, settings.dailyGoal - reviewedToday - due.size - leftoverNew.size)
     // newCap은 "오늘 학습에 들어오는 신규 카드 수" 상한 — 아직 채점 못 끝낸 박스0 잔류분도
     // 신규로 쳐서 함께 제한한다(세션을 시작만 하고 안 끝낼 때마다 신규가 불어나는 것 방지).

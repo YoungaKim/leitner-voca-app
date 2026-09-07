@@ -115,7 +115,22 @@ body {
 .cta-number {
   font-size: 1.3rem;
   font-weight: 700;
-  margin-bottom: 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.cta-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: #0f1115;
+  overflow: hidden;
+  margin: 0 0 0.6rem;
+}
+
+.cta-progress i {
+  display: block;
+  height: 100%;
+  background: #4f8cff;
+  transition: width 0.3s ease;
 }
 
 .summary-card {
@@ -336,6 +351,14 @@ select {
   flex: 1;
   margin-bottom: 0;
   max-width: none;
+}
+
+/* 수정 폼: 문장이 길거나 여러 줄일 수 있어 textarea로. Enter는 줄바꿈, 저장은 버튼으로. */
+.card-edit-form textarea {
+  width: 100%;
+  font: inherit;
+  resize: vertical;
+  min-height: 2.4rem;
 }
 
 .card-edit-actions {

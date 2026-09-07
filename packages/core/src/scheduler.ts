@@ -126,8 +126,10 @@ export function buildTodayQueue(
   //   부하 = 오늘 이미 채점한 카드 수 + 아직 남은 due + 박스0 잔류
   // 오늘 채점 수까지 포함하므로, due가 dailyGoal을 넘겨 밀린 날은 그 due를 다 풀어도
   // (남은 due는 0이 돼도 채점 수가 목표를 넘겨서) 신규가 새로 생기지 않는다.
-  // lastReviewedAt은 onAnswer가 채점 시 todayStr로 세팅한다(박스0 잔류는 아직 null이라 겹치지 않음).
-  const reviewedToday = cards.filter((c) => c.lastReviewedAt === todayStr).length;
+  // lastReviewedAt은 onAnswer가 채점 시 todayStr("YYYY-MM-DD")로 세팅하지만, 클라우드
+  // (timestamptz) 왕복 후엔 "YYYY-MM-DDTHH:mm:ss+00:00"로 돌아온다 — 앞 10자만 비교.
+  // (박스0 잔류는 아직 null이라 어차피 겹치지 않음.)
+  const reviewedToday = cards.filter((c) => (c.lastReviewedAt ?? "").slice(0, 10) === todayStr).length;
   const capacity = Math.max(
     0,
     settings.dailyGoal - reviewedToday - due.length - leftoverNew.length
