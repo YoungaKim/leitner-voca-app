@@ -615,6 +615,45 @@ select {
   text-decoration: line-through;
 }
 
+/* 정답 확인 화면의 메모 — 그 자리에서 수정/추가 (질문해서 알게 된 내용 등) */
+.chunk-note-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.chunk-note-row .chunk-note {
+  flex: 1;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.note-edit-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.note-edit {
+  margin-top: 0.8rem;
+}
+
+.note-edit-input {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.6;
+}
+
+.note-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
 .session-bottom .btn.recommended {
   outline: 2px solid #4f8cff;
   outline-offset: 2px;

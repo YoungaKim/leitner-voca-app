@@ -49,6 +49,7 @@ export default function StudySessionPage() {
   const newPoolInStore = useAppStore((s) => s.newPool);
   const introduceCard = useAppStore((s) => s.introduceCard);
   const applyReview = useAppStore((s) => s.applyReview);
+  const updateCard = useAppStore((s) => s.updateCard);
   const settings = useAppStore((s) => s.settings);
 
   // 세션 시작 시점의 오늘 큐를 한 번만 계산해서 고정한다(§1.4). 이후 답변으로
@@ -73,6 +74,10 @@ export default function StudySessionPage() {
   const [userText, setUserText] = useState("");
   const [typedMatch, setTypedMatch] = useState<boolean | null>(null);
   const [showAskTeacher, setShowAskTeacher] = useState(false);
+  // 정답 확인 화면에서 메모(chunkNote)를 그 자리에서 수정/추가 — 질문해서 알게 된 내용 등을 붙여둔다.
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
   const knewBtnRef = useRef<HTMLButtonElement>(null);
   const didntKnowBtnRef = useRef<HTMLButtonElement>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
@@ -212,6 +217,23 @@ export default function StudySessionPage() {
     setUserText("");
     setTypedMatch(null);
     setShowAskTeacher(false);
+    setEditingNote(false);
+  }
+
+  async function handleSaveNote() {
+    if (!current) return;
+    const next = noteDraft.trim() || undefined;
+    setSavingNote(true);
+    try {
+      await updateCard({ ...current, chunkNote: next });
+    } finally {
+      setSavingNote(false);
+    }
+    // 세션 큐는 시작 시점 스냅샷이라 store만 고쳐선 화면이 안 바뀜 — 큐 안의 같은 카드도 갱신.
+    const patch = (arr: Card[]) => arr.map((c) => (c.id === current.id ? { ...c, chunkNote: next } : c));
+    setQueue((q) => (q ? patch(q) : q));
+    setRetryQueue((q) => patch(q));
+    setEditingNote(false);
   }
 
   function handleHint() {
@@ -333,7 +355,40 @@ export default function StudySessionPage() {
                 🔊
               </button>
             </p>
-            {current.chunkNote && <p className="chunk-note muted">{current.chunkNote}</p>}
+            {editingNote ? (
+              <div className="note-edit">
+                <textarea
+                  className="note-edit-input"
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  placeholder="메모 (질문해서 알게 된 내용 등)"
+                  rows={3}
+                  autoFocus
+                />
+                <div className="note-edit-actions">
+                  <button type="button" className="btn ghost" onClick={() => setEditingNote(false)} disabled={savingNote}>
+                    취소
+                  </button>
+                  <button type="button" className="btn secondary" onClick={handleSaveNote} disabled={savingNote}>
+                    {savingNote ? "저장 중..." : "저장"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="chunk-note-row">
+                <p className="chunk-note muted">{current.chunkNote || "메모 없음"}</p>
+                <button
+                  type="button"
+                  className="btn ghost note-edit-btn"
+                  onClick={() => {
+                    setNoteDraft(current?.chunkNote ?? "");
+                    setEditingNote(true);
+                  }}
+                >
+                  ✏️ 편집
+                </button>
+              </div>
+            )}
 
             <button
               type="button"
