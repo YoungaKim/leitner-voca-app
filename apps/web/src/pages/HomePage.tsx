@@ -69,6 +69,9 @@ export default function HomePage() {
   );
   const [dayGoal, setDayGoal] = useState<number | null>(null);
   useEffect(() => {
+    // 재로그인/동기화 도중 cards가 잠깐 []가 되는데, 그때 스냅샷하면 목표가 0으로 굳는다.
+    // 카드가 실제로 있을 때까지 미룬다.
+    if (cards.length === 0) return;
     const t = todayStr();
     let saved: { date: string; total: number } | null = null;
     try {
@@ -77,20 +80,21 @@ export default function HomePage() {
     } catch {
       /* 비공개 모드 등 — 스냅샷 없이 진행 */
     }
-    if (saved && saved.date === t) {
+    // 오늘 날짜의 유효한(>0) 스냅샷이 있으면 그대로 쓰고, 없거나 0(빈 상태에서 저장된 것)이면 재스냅샷.
+    if (saved && saved.date === t && saved.total > 0) {
       setDayGoal(saved.total);
       return;
     }
     const total = dueToday.length + queueNewCount + reviewedToday;
-    try {
-      localStorage.setItem("dayGoal", JSON.stringify({ date: t, total }));
-    } catch {
-      /* 저장 실패해도 이번 세션 값은 아래 setDayGoal로 유지 */
+    if (total > 0) {
+      try {
+        localStorage.setItem("dayGoal", JSON.stringify({ date: t, total }));
+      } catch {
+        /* 저장 실패해도 이번 세션 값은 아래 setDayGoal로 유지 */
+      }
     }
     setDayGoal(total);
-    // 마운트 시 1회만(날짜가 바뀌면 새로고침으로 다시 평가됨). deps 의도적으로 비움.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cards.length, dueToday.length, queueNewCount, reviewedToday]);
   const goalTotal = dayGoal ?? todayCount + reviewedToday;
   const goalPct = Math.min(100, Math.round((reviewedToday / Math.max(1, goalTotal)) * 100));
   const newCount = cards.filter((c) => c.box === NEW_CARD_BOX).length;
