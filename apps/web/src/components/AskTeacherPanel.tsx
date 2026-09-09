@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Card } from "@leitner/core";
 import { askTeacher, type AiModel } from "../lib/askTeacher";
+import Markdown from "./Markdown";
 
 interface Props {
   card: Card;
@@ -96,7 +97,7 @@ export default function AskTeacherPanel({ card, model, userAnswer, apiKey, onClo
       </form>
       {loading && <p className="muted">답변 준비 중...</p>}
       {error && <p className="ask-teacher-error">지금은 답변을 받아올 수 없어요. 잠시 후 다시 시도해 주세요. ({error})</p>}
-      {answer && <p className="ask-teacher-answer">{answer}</p>}
+      {answer && <Markdown className="ask-teacher-answer" text={answer} />}
     </div>
   );
 }

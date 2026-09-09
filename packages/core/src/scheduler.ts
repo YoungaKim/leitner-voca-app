@@ -17,10 +17,28 @@ export function isCorrect(
 
 const ARTICLES = new Set(["a", "an", "the"]);
 
-/** DESIGN §1.3a 텍스트 정답 입력 정규화 — 소문자화, 구두점 제거, 관사 토큰 제거. */
-function normalizeAnswerTokens(text: string): string[] {
+/** DESIGN §1.3a 축약형 ↔ 완전형 동일 처리.
+ * 의미가 같고 격식 차이뿐이라 둘 다 정답으로 본다. 사용자 입력과 정답에 같은 변환을
+ * 적용하므로, 소유격 's(company's report)는 양쪽이 똑같이 바뀌어 매칭에 영향이 없다.
+ * would/had 모호한 'd, 소유격일 수 있는 's는 확장하지 않는다.
+ */
+function expandContractions(text: string): string {
   return text
-    .toLowerCase()
+    .replace(/\bcan't\b/g, "cannot")
+    .replace(/\bwon't\b/g, "will not")
+    .replace(/\bshan't\b/g, "shall not")
+    .replace(/\b(it|that|there|he|she|what|who|here)'s\b/g, "$1 is")
+    .replace(/\blet's\b/g, "let us")
+    .replace(/n't\b/g, " not")
+    .replace(/'re\b/g, " are")
+    .replace(/'ve\b/g, " have")
+    .replace(/'ll\b/g, " will")
+    .replace(/'m\b/g, " am");
+}
+
+/** DESIGN §1.3a 텍스트 정답 입력 정규화 — 소문자화, 축약형 확장, 구두점 제거, 관사 토큰 제거. */
+function normalizeAnswerTokens(text: string): string[] {
+  return expandContractions(text.toLowerCase())
     .replace(/[^\p{L}\p{N}\s']/gu, " ")
     .split(/\s+/)
     .filter((t) => t.length > 0 && !ARTICLES.has(t));

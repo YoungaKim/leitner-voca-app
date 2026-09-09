@@ -738,5 +738,42 @@ select {
   border-radius: 8px;
   padding: 0.8rem;
   line-height: 1.6;
-  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ask-teacher-answer > :first-child {
+  margin-top: 0;
+}
+
+.ask-teacher-answer > :last-child {
+  margin-bottom: 0;
+}
+
+.ask-teacher-answer p {
+  margin: 0.5rem 0;
+}
+
+.ask-teacher-answer ul,
+.ask-teacher-answer ol {
+  margin: 0.5rem 0;
+  padding-left: 1.3rem;
+}
+
+.ask-teacher-answer li {
+  margin: 0.2rem 0;
+}
+
+.ask-teacher-answer h3,
+.ask-teacher-answer h4,
+.ask-teacher-answer h5,
+.ask-teacher-answer h6 {
+  margin: 0.8rem 0 0.3rem;
+  font-size: 0.98rem;
+}
+
+.ask-teacher-answer code {
+  background: #2a2d34;
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.9em;
 }

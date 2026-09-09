@@ -148,6 +148,20 @@ describe("matchesAnswer — DESIGN §1.3a 텍스트 정답 매칭", () => {
     expect(matchesAnswer("Smartphones are ubiquitous", answer)).toBe(true);
   });
 
+  it("축약형과 완전형을 같게 본다", () => {
+    expect(matchesAnswer("We don't agree.", "We do not agree.")).toBe(true);
+    expect(matchesAnswer("We do not agree.", "We don't agree.")).toBe(true);
+    expect(matchesAnswer("It's ready.", "It is ready.")).toBe(true);
+    expect(matchesAnswer("They can't attend.", "They cannot attend.")).toBe(true);
+    expect(matchesAnswer("We won't delay.", "We will not delay.")).toBe(true);
+    expect(matchesAnswer("You're right and we'll start.", "You are right and we will start.")).toBe(true);
+    expect(matchesAnswer("I'm on my way.", "I am on my way.")).toBe(true);
+  });
+
+  it("소유격 's는 양쪽에 동일 적용되어 매칭에 영향 없다", () => {
+    expect(matchesAnswer("The company's report is late.", "The company's report is late.")).toBe(true);
+  });
+
   it("실제 오답(내용 단어가 다름)이면 false", () => {
     expect(matchesAnswer("Smartphones are everywhere.", answer)).toBe(false);
   });
