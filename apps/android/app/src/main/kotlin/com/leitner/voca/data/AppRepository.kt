@@ -98,7 +98,10 @@ class AppRepository(
         val card = updated.copy(updatedAt = Instant.now().toString())
         db.cardDao().upsert(card.toEntity())
         db.reviewLogDao().insert(log.toEntity())
-        mirror { userId -> sync.pushCard(userId, card) }
+        mirror { userId ->
+            sync.pushCard(userId, card)
+            sync.pushReviewLogs(userId, listOf(log))
+        }
     }
 
     suspend fun introduceCard(card: Card, poolId: String) {
@@ -139,11 +142,15 @@ class AppRepository(
         val lastUserId = prefs.getString(LAST_SYNCED_USER_KEY, null)
         if (lastUserId != null && lastUserId != userId) clearAllLocal()
 
-        val local = CloudSnapshot(decks.first(), cards.first(), newPool.first(), settings.first())
+        val local = CloudSnapshot(
+            decks.first(), cards.first(), newPool.first(), settings.first(),
+            db.reviewLogDao().getAll().map { it.toDomain() },
+        )
         val merged = sync.fullSync(userId, local)
         merged.decks.forEach { db.deckDao().upsert(it.toEntity()) }
         db.cardDao().upsertAll(merged.cards.map { it.toEntity() })
         db.newPoolDao().upsertAll(merged.newPool.map { it.toEntity() })
+        db.reviewLogDao().insertAll(merged.reviewLog.map { it.toEntity() })
         merged.settings?.let { db.settingsDao().upsert(it.toEntity()) }
         prefs.edit().putString(LAST_SYNCED_USER_KEY, userId).apply()
     }
@@ -153,6 +160,7 @@ class AppRepository(
         db.cardDao().clear()
         db.newPoolDao().clear()
         db.deckDao().clear()
+        db.reviewLogDao().clear()
         db.settingsDao().clear()
         db.syncStateDao().clear()
         prefs.edit().remove(LAST_SYNCED_USER_KEY).apply()

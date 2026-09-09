@@ -4,6 +4,8 @@ import com.leitner.voca.domain.Card
 import com.leitner.voca.domain.Deck
 import com.leitner.voca.domain.LapseMode
 import com.leitner.voca.domain.NewPoolItem
+import com.leitner.voca.domain.ReviewLog
+import com.leitner.voca.domain.ReviewResult
 import com.leitner.voca.domain.Settings
 import com.leitner.voca.domain.SyncState
 import kotlinx.serialization.SerialName
@@ -119,3 +121,27 @@ data class SyncStateRow(
 
 fun SyncState.toRow(userId: String) = SyncStateRow(userId, sourceUrl, importedIds, lastSyncAt, lastSyncResult)
 fun SyncStateRow.toDomain() = SyncState(sourceUrl, importedIds, lastSyncAt, lastSyncResult)
+
+// review_log — append-only(수정·삭제 없음)라 LWW 불필요, id 합집합만 한다.
+@Serializable
+data class ReviewLogRow(
+    val id: String,
+    @SerialName("user_id") val userId: String,
+    @SerialName("card_id") val cardId: String,
+    val date: String,
+    val result: String, // "correct" | "wrong"
+    @SerialName("box_before") val boxBefore: Int,
+    @SerialName("box_after") val boxAfter: Int,
+    @SerialName("hint_level") val hintLevel: Int,
+)
+
+fun ReviewLog.toRow(userId: String) = ReviewLogRow(
+    id, userId, cardId, date,
+    if (result == ReviewResult.CORRECT) "correct" else "wrong",
+    boxBefore, boxAfter, hintLevel,
+)
+fun ReviewLogRow.toDomain() = ReviewLog(
+    id, cardId, date,
+    if (result == "correct") ReviewResult.CORRECT else ReviewResult.WRONG,
+    boxBefore, boxAfter, hintLevel,
+)

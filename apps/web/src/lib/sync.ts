@@ -1,6 +1,6 @@
 // 2a. 로컬(IndexedDB) ↔ Supabase 클라우드 동기화. DESIGN §2.1 스키마 / §3.7 LWW / §3.9 push·pull.
 // snake_case(DB 컬럼) <-> camelCase(TS 타입) 매핑 + updatedAt 기준 Last-Write-Wins 병합.
-import type { Card, Deck, NewPoolItem, Settings, SyncState } from "@leitner/core";
+import type { Card, Deck, NewPoolItem, ReviewLog, Settings, SyncState } from "@leitner/core";
 import { supabase } from "./supabase";
 
 function nowIso() {
@@ -140,6 +140,38 @@ function rowToSettings(r: any): Settings {
   };
 }
 
+// review_log 는 append-only(수정·삭제 없음)라 LWW가 필요 없다 — id 합집합만 하면 된다.
+function reviewLogToRow(userId: string, l: ReviewLog) {
+  return {
+    id: l.id,
+    user_id: userId,
+    card_id: l.cardId,
+    date: l.date,
+    result: l.result,
+    box_before: l.boxBefore,
+    box_after: l.boxAfter,
+    hint_level: l.hintLevel,
+    input_method: l.inputMethod ?? null,
+  };
+}
+function rowToReviewLog(r: any): ReviewLog {
+  return {
+    id: r.id,
+    cardId: r.card_id,
+    date: r.date,
+    result: r.result,
+    boxBefore: r.box_before,
+    boxAfter: r.box_after,
+    hintLevel: r.hint_level,
+    inputMethod: r.input_method ?? undefined,
+  };
+}
+
+export async function pushReviewLogs(userId: string, logs: ReviewLog[]): Promise<void> {
+  if (!supabase || logs.length === 0) return;
+  await supabase.from("review_log").upsert(logs.map((l) => reviewLogToRow(userId, l)));
+}
+
 // ---- LWW 병합 --------------------------------------------------------------
 
 /** id 기준 합집합, 같은 id면 updatedAt이 더 최신인 쪽이 이긴다(DESIGN §3.7). */
@@ -215,31 +247,34 @@ export async function pushSyncState(userId: string, state: SyncState): Promise<v
 
 async function pushAll(
   userId: string,
-  data: { decks: Deck[]; cards: Card[]; newPool: NewPoolItem[]; settings: Settings }
+  data: { decks: Deck[]; cards: Card[]; newPool: NewPoolItem[]; settings: Settings; reviewLog: ReviewLog[] }
 ): Promise<void> {
   if (!supabase) return;
   if (data.decks.length) await supabase.from("decks").upsert(data.decks.map((d) => deckToRow(userId, d)));
   if (data.cards.length) await supabase.from("cards").upsert(data.cards.map((c) => cardToRow(userId, c)));
   const pending = data.newPool.filter((p) => p.status === "pending");
   if (pending.length) await supabase.from("new_pool").upsert(pending.map((p) => poolToRow(userId, p)));
+  await pushReviewLogs(userId, data.reviewLog);
   await supabase.from("settings").upsert(settingsToRow(userId, data.settings));
 }
 
 // ---- pull (클라우드 → 로컬) --------------------------------------------------
 
 async function pullAll(userId: string) {
-  if (!supabase) return { decks: [] as Deck[], cards: [] as Card[], newPool: [] as NewPoolItem[], settings: null as Settings | null };
-  const [decksRes, cardsRes, poolRes, settingsRes] = await Promise.all([
+  if (!supabase) return { decks: [] as Deck[], cards: [] as Card[], newPool: [] as NewPoolItem[], settings: null as Settings | null, reviewLog: [] as ReviewLog[] };
+  const [decksRes, cardsRes, poolRes, settingsRes, reviewLogRes] = await Promise.all([
     supabase.from("decks").select("*").eq("user_id", userId),
     supabase.from("cards").select("*").eq("user_id", userId),
     supabase.from("new_pool").select("*").eq("user_id", userId).eq("status", "pending"),
     supabase.from("settings").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("review_log").select("*").eq("user_id", userId),
   ]);
   return {
     decks: (decksRes.data ?? []).map(rowToDeck),
     cards: (cardsRes.data ?? []).map(rowToCard),
     newPool: (poolRes.data ?? []).map(rowToPool),
     settings: settingsRes.data ? rowToSettings(settingsRes.data) : null,
+    reviewLog: (reviewLogRes.data ?? []).map(rowToReviewLog),
   };
 }
 
@@ -250,14 +285,18 @@ async function pullAll(userId: string) {
  */
 export async function fullSync(
   userId: string,
-  local: { decks: Deck[]; cards: Card[]; newPool: NewPoolItem[]; settings: Settings }
-): Promise<{ decks: Deck[]; cards: Card[]; newPool: NewPoolItem[]; settings: Settings }> {
+  local: { decks: Deck[]; cards: Card[]; newPool: NewPoolItem[]; settings: Settings; reviewLog: ReviewLog[] }
+): Promise<{ decks: Deck[]; cards: Card[]; newPool: NewPoolItem[]; settings: Settings; reviewLog: ReviewLog[] }> {
   if (!supabase) return local;
 
   const remote = await pullAll(userId);
 
   const decks = mergeByUpdatedAt(local.decks, remote.decks);
   const cards = mergeByUpdatedAt(local.cards, remote.cards);
+  // append-only — id 합집합만(양쪽 어디에 있든 다 살린다).
+  const reviewLogById = new Map<string, ReviewLog>();
+  for (const l of [...remote.reviewLog, ...local.reviewLog]) reviewLogById.set(l.id, l);
+  const reviewLog = Array.from(reviewLogById.values());
   const cardIds = new Set(cards.map((c) => c.sourceId ?? c.id));
   const poolById = new Map<string, NewPoolItem>();
   for (const p of [...local.newPool, ...remote.newPool]) {
@@ -271,6 +310,6 @@ export async function fullSync(
       ? remote.settings
       : local.settings;
 
-  await pushAll(userId, { decks, cards, newPool, settings });
-  return { decks, cards, newPool, settings };
+  await pushAll(userId, { decks, cards, newPool, settings, reviewLog });
+  return { decks, cards, newPool, settings, reviewLog };
 }

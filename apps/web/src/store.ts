@@ -21,6 +21,7 @@ import {
   pushCard,
   pushDeck,
   pushPoolItems,
+  pushReviewLogs,
   pushSettings,
   pushSyncState,
 } from "./lib/sync";
@@ -113,14 +114,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       const { decks, cards, newPool, settings } = get();
-      const merged = await fullSync(userId, { decks, cards, newPool, settings });
+      const reviewLog = await reviewLogRepo.all();
+      const merged = await fullSync(userId, { decks, cards, newPool, settings, reviewLog });
       await Promise.all([
         deckRepo.putMany(merged.decks),
         cardsRepo.putMany(merged.cards),
         newPoolRepo.putMany(merged.newPool),
         settingsRepo.put(merged.settings),
+        reviewLogRepo.putMany(merged.reviewLog),
       ]);
-      set({ ...merged, syncing: false });
+      // reviewLog는 스토어 상태가 아니라 IndexedDB에만 두므로 set에서 제외한다.
+      const { reviewLog: _rl, ...mergedState } = merged;
+      set({ ...mergedState, syncing: false });
       localStorage.setItem(LAST_SYNCED_USER_KEY, userId);
     } catch (err) {
       console.warn("초기 동기화 실패", err);
@@ -260,7 +265,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     await cardsRepo.put(card);
     await reviewLogRepo.add(log);
     set((s) => ({ cards: s.cards.map((c) => (c.id === cardId ? card : c)) }));
-    mirrorToCloud((userId) => pushCard(userId, card));
+    mirrorToCloud(async (userId) => {
+      await pushCard(userId, card);
+      await pushReviewLogs(userId, [log]);
+    });
   },
 
   async introduceCard(card, poolId) {

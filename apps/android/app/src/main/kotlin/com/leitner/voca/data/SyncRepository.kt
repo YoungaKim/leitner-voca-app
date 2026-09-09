@@ -3,6 +3,7 @@ package com.leitner.voca.data
 import com.leitner.voca.domain.Card
 import com.leitner.voca.domain.Deck
 import com.leitner.voca.domain.NewPoolItem
+import com.leitner.voca.domain.ReviewLog
 import com.leitner.voca.domain.Settings
 import com.leitner.voca.domain.SyncState
 import io.github.jan.supabase.SupabaseClient
@@ -28,7 +29,13 @@ fun <T> mergeByUpdatedAt(local: List<T>, remote: List<T>, id: (T) -> String, upd
     return byId.values.toList()
 }
 
-data class CloudSnapshot(val decks: List<Deck>, val cards: List<Card>, val newPool: List<NewPoolItem>, val settings: Settings?)
+data class CloudSnapshot(
+    val decks: List<Deck>,
+    val cards: List<Card>,
+    val newPool: List<NewPoolItem>,
+    val settings: Settings?,
+    val reviewLog: List<ReviewLog> = emptyList(),
+)
 
 class SyncRepository(private val supabase: SupabaseClient) {
 
@@ -62,6 +69,11 @@ class SyncRepository(private val supabase: SupabaseClient) {
         supabase.postgrest["settings"].upsert(settings.toRow(userId))
     }
 
+    suspend fun pushReviewLogs(userId: String, logs: List<ReviewLog>) {
+        if (logs.isEmpty()) return
+        supabase.postgrest["review_log"].upsert(logs.map { it.toRow(userId) })
+    }
+
     /** 2d — 콘텐츠 동기화 진행 상태 백업. PC 웹과 마찬가지로 로그인 시 pull-병합 대상에는 안 넣는다
      * (기기별 진행 상태를 서로 덮어쓰지 않도록) — push만으로 클라우드에 최신 상태를 남겨둔다. */
     suspend fun pushSyncState(userId: String, state: SyncState) {
@@ -78,7 +90,9 @@ class SyncRepository(private val supabase: SupabaseClient) {
         }.decodeList<NewPoolRow>().map { it.toDomain() }
         val settings = supabase.postgrest["settings"].select { filter { eq("user_id", userId) } }
             .decodeSingleOrNull<SettingsRow>()?.toDomain()
-        return CloudSnapshot(decks, cards, pool, settings)
+        val reviewLog = supabase.postgrest["review_log"].select { filter { eq("user_id", userId) } }
+            .decodeList<ReviewLogRow>().map { it.toDomain() }
+        return CloudSnapshot(decks, cards, pool, settings, reviewLog)
     }
 
     /** 로그인 직후 1회 호출 — 클라우드와 병합해 병합 결과를 반환하고, 병합본을 다시 클라우드에도
@@ -103,10 +117,16 @@ class SyncRepository(private val supabase: SupabaseClient) {
             // LWW로 원격이 이겨도 이 기기가 알던 값을 잃으면 안 된다.
             .let { it.copy(contentSourceDeckId = it.contentSourceDeckId ?: local.settings?.contentSourceDeckId) }
 
-        val merged = CloudSnapshot(decks, cards, poolById.values.toList(), settings)
+        // append-only — id 합집합만(양쪽 어디에 있든 다 살린다).
+        val reviewLogById = LinkedHashMap<String, ReviewLog>()
+        for (l in remote.reviewLog + local.reviewLog) reviewLogById[l.id] = l
+        val reviewLog = reviewLogById.values.toList()
+
+        val merged = CloudSnapshot(decks, cards, poolById.values.toList(), settings, reviewLog)
         if (merged.decks.isNotEmpty()) supabase.postgrest["decks"].upsert(merged.decks.map { it.toRow(userId) })
         if (merged.cards.isNotEmpty()) supabase.postgrest["cards"].upsert(merged.cards.map { it.toRow(userId) })
         if (merged.newPool.isNotEmpty()) supabase.postgrest["new_pool"].upsert(merged.newPool.map { it.toRow(userId) })
+        if (merged.reviewLog.isNotEmpty()) supabase.postgrest["review_log"].upsert(merged.reviewLog.map { it.toRow(userId) })
         supabase.postgrest["settings"].upsert(merged.settings!!.toRow(userId))
         return merged
     }

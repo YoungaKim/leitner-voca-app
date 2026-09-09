@@ -133,6 +133,11 @@ export const reviewLogRepo = {
   async add(entry: ReviewLog): Promise<void> {
     await (await getDB()).put("reviewLog", entry);
   },
+  async putMany(entries: ReviewLog[]): Promise<void> {
+    if (entries.length === 0) return;
+    const tx = (await getDB()).transaction("reviewLog", "readwrite");
+    await Promise.all([...entries.map((e) => tx.store.put(e)), tx.done]);
+  },
 };
 
 export const settingsRepo = {

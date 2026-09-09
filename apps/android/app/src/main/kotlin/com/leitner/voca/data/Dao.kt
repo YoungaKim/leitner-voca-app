@@ -70,6 +70,13 @@ interface ReviewLogDao {
     @Insert
     suspend fun insert(entry: ReviewLogEntity)
 
+    // append-only — 같은 id가 이미 있으면(재동기화 등) 무시한다.
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(entries: List<ReviewLogEntity>)
+
+    @Query("SELECT * FROM review_log")
+    suspend fun getAll(): List<ReviewLogEntity>
+
     @Query("DELETE FROM review_log")
     suspend fun clear()
 }
