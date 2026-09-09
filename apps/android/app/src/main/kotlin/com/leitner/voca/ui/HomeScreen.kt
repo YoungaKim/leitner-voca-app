@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,10 +20,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.leitner.voca.domain.GRADUATED_BOX
 import com.leitner.voca.domain.buildTodayQueue
 import com.leitner.voca.domain.today
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 // UXUI §3.2 홈/상자 대시보드 포팅 — PC 웹은 계단형 SVG 채움 차트지만 Compose 1차 버전은
 // 박스별 카드 수를 막대 리스트로 보여준다(기능 동등, 시각 정교화는 다음 이터레이션).
@@ -69,6 +73,32 @@ fun HomeScreen(
     val mastered = state.cards.count { it.box == GRADUATED_BOX }
     val boxCounts = (1..GRADUATED_BOX).map { box -> state.cards.count { it.box == box } }
 
+    // PC 웹 HomePage와 동일: "오늘 목표"는 계속 변하는 큐 잔량이 아니라 하루 1회 고정한 숫자.
+    // 그날 처음 홈을 열 때 (남은 오늘치 + 오늘 이미 채점한 수)를 SharedPreferences에 스냅샷하고,
+    // 날짜가 바뀌면 다시 스냅샷. lastReviewedAt은 로컬 채점 직후엔 "YYYY-MM-DD", 클라우드
+    // 왕복 후엔 "...THH:mm:ss+00:00"이라 앞 10자만 비교한다.
+    val context = LocalContext.current
+    val reviewedToday = state.cards.count { (it.lastReviewedAt ?: "").take(10) == today() }
+    val goalTotal = remember(state.cards, todayCount, reviewedToday) {
+        val t = today()
+        val prefs = context.getSharedPreferences("voca_home", android.content.Context.MODE_PRIVATE)
+        val savedDate = prefs.getString("dayGoalDate", null)
+        val savedTotal = prefs.getInt("dayGoalTotal", 0)
+        when {
+            // 재로그인/동기화 중 cards가 잠깐 비면 스냅샷하지 않는다(목표가 0으로 굳는 것 방지).
+            state.cards.isEmpty() -> maxOf(savedTotal, todayCount + reviewedToday)
+            savedDate == t && savedTotal > 0 -> savedTotal
+            else -> {
+                val total = todayCount + reviewedToday
+                if (total > 0) {
+                    prefs.edit().putString("dayGoalDate", t).putInt("dayGoalTotal", total).apply()
+                }
+                total
+            }
+        }
+    }
+    val goalPct = min(100, ((reviewedToday.toFloat() / maxOf(1, goalTotal)) * 100).roundToInt())
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Card(colors = CardDefaults.cardColors()) {
             Column(Modifier.padding(16.dp)) {
@@ -92,13 +122,20 @@ fun HomeScreen(
         Card {
             Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 if (todayCount > 0) {
-                    Text("오늘 복습할 카드 ${todayCount}개", style = MaterialTheme.typography.titleLarge)
-                    androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
-                    Text(queueBreakdown, style = MaterialTheme.typography.bodySmall)
+                    Text("오늘 목표 ${goalTotal}개 · 완료 ${reviewedToday}개", style = MaterialTheme.typography.titleLarge)
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { goalPct / 100f },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+                    Text("남은 큐 ${todayCount}개 · $queueBreakdown", style = MaterialTheme.typography.bodySmall)
                     androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
                     Button(onClick = onStartSession) { Text("학습 시작") }
                 } else {
-                    Text("오늘 복습 끝! 🎉", style = MaterialTheme.typography.titleLarge)
+                    Text("오늘 목표 달성! 🎉", style = MaterialTheme.typography.titleLarge)
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
+                    Text("오늘 ${reviewedToday}개 학습 완료", style = MaterialTheme.typography.bodySmall)
                     androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
                 }
                 androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
