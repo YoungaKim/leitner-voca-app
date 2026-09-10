@@ -129,7 +129,8 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
-                    Text("남은 큐 ${todayCount}개 · $queueBreakdown", style = MaterialTheme.typography.bodySmall)
+                    // 큐 총량은 위 "오늘 목표 N개"·진행률 바와 중복이라(박스별 숫자 합 = 남은 큐) 내역만.
+                    Text(queueBreakdown, style = MaterialTheme.typography.bodySmall)
                     androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
                     Button(onClick = onStartSession) { Text("학습 시작") }
                 } else {

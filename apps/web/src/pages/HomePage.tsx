@@ -235,8 +235,9 @@ export default function HomePage() {
           <div className="cta-progress" aria-hidden>
             <i style={{ width: `${goalPct}%` }} />
           </div>
+          {/* 큐 총량은 위 "오늘 목표 N개"·진행률 바와 중복이라(박스별 숫자 합 = 남은 큐) 내역만 보여준다. */}
           <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem", marginBottom: 12 }}>
-            남은 큐 {todayCount}개 · {queueBreakdown}
+            {queueBreakdown}
           </div>
           <Link className="btn primary large" to="/session">
             학습 시작
