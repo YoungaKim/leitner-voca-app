@@ -38,11 +38,34 @@ export const useAuthStore = create<AuthState>(() => ({
 /** onSignedIn: 앱이 이 세션에서 "새로 로그인됨"을 감지했을 때 1회 호출할 콜백(동기화 트리거용). */
 export function initAuth(onSignedIn: (userId: string) => void) {
   if (!supabase) return;
-  supabase.auth.getSession().then(({ data }) => {
-    currentUserId = data.session?.user.id ?? null;
-    useAuthStore.setState({ user: data.session?.user ?? null, ready: true });
-    if (currentUserId) onSignedIn(currentUserId);
-  });
+
+  // getSession()이 응답하지 않으면(저장된 세션 토큰이 꼬였거나 Web Locks 경합 등)
+  // ready가 영원히 false로 남아 App.tsx가 "불러오는 중..."에서 멈춘다.
+  // 일정 시간 안에 응답이 없으면 "로그인 안 됨"으로 간주하고 화면을 띄운다 —
+  // 실제 세션이 있었다면 이후 onAuthStateChange나 재로그인으로 바로잡힌다.
+  let settled = false;
+  const timeout = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    useAuthStore.setState({ ready: true });
+  }, 5000);
+
+  supabase.auth
+    .getSession()
+    .then(({ data }) => {
+      if (settled) return; // 타임아웃이 먼저 발동했으면 이 결과는 버린다.
+      settled = true;
+      clearTimeout(timeout);
+      currentUserId = data.session?.user.id ?? null;
+      useAuthStore.setState({ user: data.session?.user ?? null, ready: true });
+      if (currentUserId) onSignedIn(currentUserId);
+    })
+    .catch(() => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      useAuthStore.setState({ ready: true });
+    });
 
   supabase.auth.onAuthStateChange((event, session) => {
     const wasSignedOut = currentUserId === null;

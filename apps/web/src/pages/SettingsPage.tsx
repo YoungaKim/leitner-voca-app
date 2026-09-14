@@ -40,12 +40,12 @@ export default function SettingsPage() {
     claude: {
       url: "https://console.anthropic.com/settings/keys",
       linkLabel: "console.anthropic.com 바로가기",
-      note: "발급에 결제수단 등록이 필요합니다. 비워두면 앱 공용 키를 씁니다.",
+      note: "발급에 결제수단 등록이 필요합니다.",
     },
     gpt: {
       url: "https://platform.openai.com/api-keys",
       linkLabel: "platform.openai.com 바로가기",
-      note: "발급에 선불 크레딧이 필요합니다. 비워두면 앱 공용 키를 씁니다.",
+      note: "발급에 선불 크레딧이 필요합니다.",
     },
   };
   const aiKeyHelp = AI_KEY_HELP[settings.preferredAiModel];
@@ -72,7 +72,19 @@ export default function SettingsPage() {
     });
   }
 
-  const canSync = Boolean(settings.contentSourceUrl && settings.contentSourceDeckId);
+  // 저장 버튼을 누르지 않아도 폼에 값이 채워져 있으면 동기화할 수 있게 한다.
+  const canSync = Boolean(url.trim() && deckId);
+
+  async function handleSyncNow() {
+    // 아직 저장 안 된 값이면 먼저 저장하고 동기화한다.
+    if (url.trim() !== (settings.contentSourceUrl ?? "") || deckId !== (settings.contentSourceDeckId ?? "")) {
+      await updateSettings({
+        contentSourceUrl: url.trim() || undefined,
+        contentSourceDeckId: deckId || undefined,
+      });
+    }
+    await syncContentNow();
+  }
 
   async function handleChangeAiModel(model: "claude" | "gemini" | "gpt") {
     await updateSettings({ preferredAiModel: model });
@@ -130,7 +142,6 @@ export default function SettingsPage() {
       <p className="muted">
         학습 세션의 [선생님한테 질문] 기능에 사용할 모델을 고르고, 그 모델의 API 키를 입력하세요. 키는 본인
         계정에만 저장되며(다른 기기에서도 공유), 질문할 때마다 서버 프록시를 거쳐 해당 API로 전달됩니다.
-        키를 비워두면 앱 공용 키로 동작합니다.
       </p>
       <form className="card-form ai-form" onSubmit={handleSaveAiKey}>
         <label>
@@ -151,7 +162,7 @@ export default function SettingsPage() {
           <input
             type="password"
             autoComplete="off"
-            placeholder="API 키 입력 (비우면 앱 공용 키 사용)"
+            placeholder="API 키 입력"
             value={aiKey}
             onChange={(e) => setAiKey(e.target.value)}
           />
@@ -218,7 +229,7 @@ export default function SettingsPage() {
       </label>
 
       <div className="sync-status">
-        <button className="btn secondary" onClick={() => syncContentNow()} disabled={!canSync || contentSyncing}>
+        <button className="btn secondary" onClick={handleSyncNow} disabled={!canSync || contentSyncing}>
           {contentSyncing ? "동기화 중…" : "지금 동기화"}
         </button>
         {syncState.lastSyncAt && (

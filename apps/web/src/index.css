@@ -531,6 +531,16 @@ select {
   font-size: 0.8rem;
 }
 
+.retry-banner {
+  background: #3a2f1a;
+  color: #f0c674;
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.85rem;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
 .card-face {
   flex: 1;
   display: flex;
@@ -543,6 +553,18 @@ select {
   font-size: 1.6rem;
   line-height: 1.6;
   text-align: left;
+}
+
+/* 카드 제시 화면의 한글 문장 — 그 자리에서 오타 수정 가능 */
+.prompt-ko-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.prompt-ko-row .prompt-ko {
+  flex: 1;
+  margin: 0;
 }
 
 .hint-box,

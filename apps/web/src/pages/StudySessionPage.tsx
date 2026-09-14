@@ -22,16 +22,63 @@ type Phase = "prompt" | "hint" | "answer";
 
 const HINT_LADDER = [
   "한글만",
-  "단어 수 + 첫 단어",
-  "모든 단어 첫 글자",
+  "메모 · 단어 수",
+  "핵심 표현 공개",
   "대부분 공개, 빈칸 1~2개",
 ];
 
-function buildHintText(answerEn: string, level: number): string {
+// 메모(chunkNote)는 보통 "표현 + 품사/설명 (부가설명)" 형태라 첫 줄의
+// "표현" 부분만 뽑아낸다. 메모 전체를 그대로 보여주면 설명까지 노출돼
+// 힌트로서 과하다 — 핵심 표현만 짧게 드러낸다.
+function extractKeyExpr(chunkNote?: string): string | null {
+  if (!chunkNote) return null;
+  const firstLine = chunkNote.split("\n")[0].trim();
+  if (!firstLine) return null;
+  const cut = firstLine.split(" + ")[0].split(/[(:]/)[0].trim();
+  return cut || firstLine;
+}
+
+// 핵심 표현에 등장하는 단어를 정답 문장에서 찾아 그대로 노출하고 나머지는
+// 빈칸 처리한다. 메모가 없거나 겹치는 단어가 없으면 null을 반환해 호출부가
+// 기존 "첫 글자 스켈레톤"으로 폴백하도록 한다.
+function keyExprMask(answerEn: string, chunkNote?: string): string | null {
+  const keyExpr = extractKeyExpr(chunkNote);
+  if (!keyExpr) return null;
+  const noteWords = new Set(
+    keyExpr
+      .toLowerCase()
+      .replace(/[^a-z\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 1)
+  );
+  if (noteWords.size === 0) return null;
+  let hit = false;
+  const masked = answerEn
+    .split(" ")
+    .map((w) => {
+      const bare = w.toLowerCase().replace(/[^a-z]/g, "");
+      if (bare.length > 1 && noteWords.has(bare)) {
+        hit = true;
+        return w;
+      }
+      return "_".repeat(Math.max(1, w.length));
+    })
+    .join(" ");
+  return hit ? masked : null;
+}
+
+function buildHintText(current: Card, level: number): string {
+  const { answerEn, chunkNote } = current;
   const words = answerEn.split(" ");
+  const skeleton = () => words.map((w) => w[0] + "_".repeat(Math.max(0, w.length - 1))).join(" ");
   if (level === 0) return "";
-  if (level === 1) return `${words.length}단어 · "${words[0]} ..."`;
-  if (level === 2) return words.map((w) => w[0] + "_".repeat(Math.max(0, w.length - 1))).join(" ");
+  if (level === 1) {
+    const keyExpr = extractKeyExpr(chunkNote);
+    return keyExpr
+      ? `${words.length}단어 · 💡 "${keyExpr}"`
+      : `${words.length}단어 · "${words[0]} ..."`;
+  }
+  if (level === 2) return keyExprMask(answerEn, chunkNote) ?? skeleton();
   // level 3: 대부분 공개, 마지막 단어만 가림
   return words.map((w, i) => (i === words.length - 1 ? w[0] + "_".repeat(Math.max(0, w.length - 1)) : w)).join(" ");
 }
@@ -78,6 +125,10 @@ export default function StudySessionPage() {
   const [editingNote, setEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  // 카드 제시 화면의 한글 문장(promptKo)도 그 자리에서 오타 수정 가능하게.
+  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [promptDraft, setPromptDraft] = useState("");
+  const [savingPrompt, setSavingPrompt] = useState(false);
   const knewBtnRef = useRef<HTMLButtonElement>(null);
   const didntKnowBtnRef = useRef<HTMLButtonElement>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
@@ -218,6 +269,24 @@ export default function StudySessionPage() {
     setTypedMatch(null);
     setShowAskTeacher(false);
     setEditingNote(false);
+    setEditingPrompt(false);
+  }
+
+  async function handleSavePrompt() {
+    if (!current) return;
+    const next = promptDraft.trim();
+    if (!next) return;
+    setSavingPrompt(true);
+    try {
+      await updateCard({ ...current, promptKo: next });
+    } finally {
+      setSavingPrompt(false);
+    }
+    // 세션 큐는 시작 시점 스냅샷이라 store만 고쳐선 화면이 안 바뀜 — 큐 안의 같은 카드도 갱신.
+    const patch = (arr: Card[]) => arr.map((c) => (c.id === current.id ? { ...c, promptKo: next } : c));
+    setQueue((q) => (q ? patch(q) : q));
+    setRetryQueue((q) => patch(q));
+    setEditingPrompt(false);
   }
 
   async function handleSaveNote() {
@@ -294,14 +363,56 @@ export default function StudySessionPage() {
         <Link to="/" className="close-btn">
           ✕
         </Link>
-        <div className="progress">
-          {index + 1} / {total} {inRetryPass && "(다시 보기)"}
-        </div>
+        <div className="progress">{index + 1} / {total}</div>
         <div className="box-badge">{current.box === NEW_CARD_BOX ? "신규" : `박스 ${current.box}`}</div>
       </div>
 
+      {inRetryPass && (
+        <div className="retry-banner">🔁 오늘 틀린 카드 복습 — 채점에는 반영되지 않아요</div>
+      )}
+
       <div className="card-face">
-        <p className="prompt-ko">{current.promptKo}</p>
+        {editingPrompt ? (
+          <div className="note-edit">
+            <textarea
+              className="note-edit-input"
+              value={promptDraft}
+              onChange={(e) => setPromptDraft(e.target.value)}
+              placeholder="한글 문장"
+              rows={2}
+              autoFocus
+            />
+            <div className="note-edit-actions">
+              <button type="button" className="btn ghost" onClick={() => setEditingPrompt(false)} disabled={savingPrompt}>
+                취소
+              </button>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={handleSavePrompt}
+                disabled={savingPrompt || !promptDraft.trim()}
+              >
+                {savingPrompt ? "저장 중..." : "저장"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="prompt-ko-row">
+            <p className="prompt-ko">{current.promptKo}</p>
+            <button
+              type="button"
+              className="btn ghost note-edit-btn"
+              onClick={() => {
+                setPromptDraft(current.promptKo);
+                setEditingPrompt(true);
+              }}
+              title="한글 문장 수정"
+              aria-label="한글 문장 수정"
+            >
+              ✏️
+            </button>
+          </div>
+        )}
 
         {phase !== "answer" && (
           <form className="text-answer-form" onSubmit={handleTextSubmit}>
@@ -328,7 +439,7 @@ export default function StudySessionPage() {
               힌트 {hintLevel}/3 · {HINT_LADDER[hintLevel]} ·{" "}
               {hintLevel <= settings.hintFreeLevel ? "채점 영향 없음" : "채점 영향 있음(자동 오답)"}
             </p>
-            <p className="hint-text">{buildHintText(current.answerEn, hintLevel)}</p>
+            <p className="hint-text">{buildHintText(current, hintLevel)}</p>
           </div>
         )}
 
@@ -393,7 +504,13 @@ export default function StudySessionPage() {
             <button
               type="button"
               className="btn ghost ask-teacher-toggle"
-              onClick={() => setShowAskTeacher((v) => !v)}
+              onClick={() => {
+                if (!settings.aiApiKeys?.[settings.preferredAiModel]?.trim()) {
+                  alert("AI 선생님이 아직 설정되지 않았어요.\n설정 > AI 선생님에서 모델을 고르고 API 키를 입력해 주세요.");
+                  return;
+                }
+                setShowAskTeacher((v) => !v);
+              }}
             >
               🧑‍🏫 질문
             </button>
