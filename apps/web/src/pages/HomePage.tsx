@@ -10,6 +10,8 @@ import { Link } from "react-router-dom";
 import { GRADUATED_BOX, NEW_CARD_BOX, buildTodayQueue, today as todayStr } from "@leitner/core";
 import { useAppStore } from "../store";
 import { needsRefill } from "../lib/contentSync";
+import { getRetryPendingIds } from "../lib/retryPending";
+import { reviewLogRepo } from "../lib/db";
 
 // index0 = 박스0(신규, DESIGN §1.3b) · index1~6 = 박스1~6 · index7 = 졸업
 const BOX_COLORS = ["#94a3b8", "#ef4444", "#f97316", "#eab308", "#a3e635", "#22c55e", "#14b8a6", "#dca512"];
@@ -114,6 +116,65 @@ export default function HomePage() {
           ...dayGoal.box.map((n, i) => (n > 0 ? `박스${i + 1} ${n}` : null)).filter(Boolean),
         ].join(" · ")
       : queueBreakdown;
+  // 세션에서 저장하는 localStorage 값이라 zustand 구독이 안 돼 홈에 다시 돌아올 때(포커스 복귀)
+  // 마다 다시 읽어야 한다 — 세션 갔다가 몰랐어를 누르고 바로 나와도 이 값이 반영되게.
+  const [pendingRetryCount, setPendingRetryCount] = useState(0);
+  // 승급/강등 개수도 세션 컴포넌트의 tallyRef(로컬 state)에만 있어서 세션을 나가면 사라진다.
+  // reviewLog(IndexedDB)에 boxBefore/boxAfter가 남아있으니 오늘자 로그를 다시 세서 구한다
+  // (하루 안에 세션을 여러 번 나눠 해도 전체 합이 맞다).
+  const [boxTally, setBoxTally] = useState({ up: 0, down: 0, flat: 0, newCount: 0 });
+  useEffect(() => {
+    let cancelled = false;
+    async function refresh() {
+      setPendingRetryCount(getRetryPendingIds().length);
+      const logs = await reviewLogRepo.all();
+      if (cancelled) return;
+      const t = todayStr();
+      let up = 0;
+      let down = 0;
+      let flat = 0; // 승급도 강등도 아닌 경우 — 예: 박스1에서 틀리면 더 못 내려가 그대로 박스1 유지
+      let newCount = 0; // 신규(박스0)에서 시작해 오늘 처음 채점된 카드 수
+      for (const l of logs) {
+        if (l.date !== t) continue;
+        if (l.boxBefore === NEW_CARD_BOX) {
+          // 신규는 정답이든 오답이든 박스가 무조건 1 이상으로 올라가(박스0 밑이 없음) 항상
+          // "승급"으로 잡히는데, 그러면 신규가 승급의 부분집합이 돼 따로 더할 때 총합이
+          // 안 맞는다. 신규→박스1은 "승급"이 아니라 그냥 "신규"로 따로 센다.
+          newCount += 1;
+        } else if (l.boxAfter > l.boxBefore) {
+          up += 1;
+        } else if (l.boxAfter < l.boxBefore) {
+          down += 1;
+        } else {
+          flat += 1;
+        }
+      }
+      setBoxTally({ up, down, flat, newCount });
+    }
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [reviewedToday]);
+  // 위 CTA 세 갈래(진행 중/다시보기/완전 종료)에서 공통으로 쓰는 "신규 A · 승급 B · 강등 C · 유지 D"
+  // 한 줄 — 넷 다 서로 겹치지 않게 셌으니(신규→박스1은 승급이 아니라 신규로만 집계) 그대로
+  // 다 더하면 오늘 채점 총량과 같다.
+  const boxTallyLine = (
+    <>
+      신규 <b>{boxTally.newCount}</b>개 · 승급 <b style={{ color: "#22c55e" }}>{boxTally.up}</b>개 · 강등{" "}
+      <b style={{ color: "#ef4444" }}>{boxTally.down}</b>개
+      {boxTally.flat > 0 && (
+        <>
+          {" "}
+          · 유지 <b>{boxTally.flat}</b>개
+        </>
+      )}
+    </>
+  );
   const newCount = cards.filter((c) => c.box === NEW_CARD_BOX).length;
   const mastered = cards.filter((c) => c.box === GRADUATED_BOX).length;
   const boxCounts = Array.from({ length: 6 }, (_, i) =>
@@ -253,18 +314,37 @@ export default function HomePage() {
             <i style={{ width: `${goalPct}%` }} />
           </div>
           {/* 오늘 목표를 이룬 구성 내역 — 목표와 같은 시점에 얼린 값이라 합이 항상 goalTotal과 같다. */}
-          <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem", marginBottom: 12 }}>
+          <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem" }}>
             {goalBreakdown}
+          </div>
+          <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem", marginBottom: 12 }}>
+            {boxTallyLine}
           </div>
           <Link className="btn primary large" to="/session">
             학습 시작
+          </Link>
+        </section>
+      ) : pendingRetryCount > 0 ? (
+        // 오늘 채점할 신규/복습은 다 끝났지만, 지난 세션에서 틀려서 "다시 보기"(채점 미반영
+        // 재노출)를 못 끝낸 카드가 남아있는 경우. 이걸 "목표 달성"이라고만 하면 다시 볼 방법이
+        // 없어져서(세션은 홈에 새로 due 카드가 없으면 안 열림) 여기서 따로 계속 열어준다.
+        <section className="cta">
+          <div className="cta-number">오늘 목표 달성! 🎉</div>
+          <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem" }}>
+            {boxTallyLine}
+          </div>
+          <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem", marginBottom: 12 }}>
+            아직 다 못 본 오늘 틀린 카드 {pendingRetryCount}개 — 채점엔 반영 안 돼요
+          </div>
+          <Link className="btn primary large" to="/session">
+            다시 보기
           </Link>
         </section>
       ) : (
         <section className="cta">
           <div className="cta-number">오늘 목표 달성! 🎉</div>
           <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem" }}>
-            오늘 {reviewedToday}개 학습 완료
+            오늘 {reviewedToday}개 학습 완료 · {boxTallyLine}
           </div>
           <Link className="btn secondary" to="/decks">
             단어장 관리

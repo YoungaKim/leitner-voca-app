@@ -17,6 +17,7 @@ import { v4 as uuid } from "uuid";
 import { useAppStore } from "../store";
 import AskTeacherPanel from "../components/AskTeacherPanel";
 import { speakEnglish } from "../lib/tts";
+import { addRetryPendingId, getRetryPendingIds, removeRetryPendingId } from "../lib/retryPending";
 
 type Phase = "prompt" | "hint" | "answer";
 
@@ -149,6 +150,15 @@ export default function StudySessionPage() {
       }
       // 복습(박스1~6) → 박스0 잔류 신규 → 이번 세션 신규 도입 순.
       if (!cancelled) setQueue([...dueCards, ...leftoverNew, ...introduced]);
+      // 지난번 세션에서 다 못 끝낸 "오늘 틀린 카드 다시보기" 대기분을 이어서 복원한다
+      // (그대로 두면 홈으로 나가는 순간 retryQueue state가 사라져 그 카드들이 통째로 유실됨).
+      const pendingIds = getRetryPendingIds();
+      if (!cancelled && pendingIds.length > 0) {
+        const pendingCards = pendingIds
+          .map((id) => cardsInStore.find((c) => c.id === id))
+          .filter((c): c is Card => !!c);
+        if (pendingCards.length > 0) setRetryQueue((q) => [...q, ...pendingCards]);
+      }
     })();
     return () => {
       cancelled = true;
@@ -324,7 +334,11 @@ export default function StudySessionPage() {
   async function handleGrade(userClaimedKnew: boolean, inputMethod: InputMethod = "grade") {
     if (!current) return;
     if (inRetryPass) {
-      // 재노출 패스는 box/nextReviewDate에 반영하지 않음(DESIGN §1.5) — 카운트만 없이 다음으로.
+      // 재노출 패스는 box/nextReviewDate에 반영하지 않음(DESIGN §1.5) — 카운트·채점 없이 다음으로.
+      // 단, "오늘 틀린 카드" 대기 목록에서는 이번에도 맞혀야 지운다 — 여기서 또 틀리면
+      // 아직 안 외워진 거니 계속 복습 대상으로 남겨서(홈에 계속 노출) 다음에 또 볼 수 있게 한다.
+      const retryCorrect = isCorrect(hintLevel, userClaimedKnew, settings);
+      if (retryCorrect) removeRetryPendingId(current.id);
       goToNext();
       return;
     }
@@ -349,7 +363,10 @@ export default function StudySessionPage() {
     if (updated.box < current.box) t.boxDown += 1;
     forceRender((n) => n + 1);
 
-    if (!correct) setRetryQueue((q) => [...q, current]);
+    if (!correct) {
+      setRetryQueue((q) => [...q, current]);
+      addRetryPendingId(current.id);
+    }
     goToNext();
   }
 
