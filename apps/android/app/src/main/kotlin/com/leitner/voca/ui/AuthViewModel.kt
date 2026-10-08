@@ -37,7 +37,8 @@ class AuthViewModel(private val authRepo: AuthRepository, private val appRepo: A
                 val idToken = requestGoogleIdToken(context)
                 authRepo.signInWithGoogleIdToken(idToken)
             } catch (e: Exception) {
-                _error.value = e.message ?: "로그인에 실패했습니다."
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                _error.value = "로그인에 실패했습니다. 연결과 Google 계정을 확인하고 다시 시도하세요."
             } finally {
                 _signingIn.value = false
             }
@@ -71,9 +72,16 @@ class AuthViewModel(private val authRepo: AuthRepository, private val appRepo: A
         if (syncing) return
         syncing = true
         viewModelScope.launch {
-            runCatching { appRepo.mergeFromCloud(userId) }
-                .onFailure { _error.value = "동기화 실패: ${it.message}" }
-            syncing = false
+            try {
+                runCatching { appRepo.mergeFromCloud(userId) }
+                    .onSuccess { _error.value = null }
+                    .onFailure {
+                        if (it is kotlinx.coroutines.CancellationException) throw it
+                        _error.value = "서버 데이터를 불러오지 못했습니다. 연결을 확인하고 다시 시도하세요."
+                    }
+            } finally {
+                syncing = false
+            }
         }
     }
 }

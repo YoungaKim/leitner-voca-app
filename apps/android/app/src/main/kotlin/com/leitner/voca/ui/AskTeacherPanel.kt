@@ -48,7 +48,7 @@ fun AskTeacherPanel(
         onAsk(q) { result ->
             loading = false
             result.onSuccess { answer = it }
-            result.onFailure { error = it.message ?: it.toString() }
+            result.onFailure { error = "답변을 가져오지 못했습니다. 연결과 모델 설정을 확인하고 다시 시도하세요." }
         }
     }
 

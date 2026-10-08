@@ -383,6 +383,7 @@ Android(Room 캐시) ← 읽기 / 저장 성공 후 반영 → Supabase(Auth + P
 - `save_shared_review(card_data, log_data, expected_updated_at)`: 카드 행을 잠그고 `updated_at` 및 `box_before`를 검사한 뒤 진행 변경+로그 insert를 함께 처리한다. 같은 로그 id는 재요청해도 중복 기록하지 않는다.
 - 두 RPC는 `security invoker`, 인증 사용자에게만 실행 권한, `auth.uid()`와 입력 소유자 검증 및 RLS를 적용한다.
 - 실패/충돌 시 학습은 현재 카드에 머무른다. 오류를 확인하고 홈으로 돌아가 최신 큐로 다시 시작한다. pool 도입 실패도 오류와 홈 복귀 경로를 제공한다.
+- Android SDK 예외에는 Authorization 등 요청 헤더가 포함될 수 있으므로 예외 message/toString을 UI나 공유 syncState에 전달하지 않는다. 저장 충돌은 허용된 고정 안내로 변환하고, 로그인·읽기·질문·시트 요청 실패도 고정된 복구 안내를 사용한다. 기존 시트 파싱의 행별 형식 오류는 별도 유지한다.
 - 별도 진행 상태 수동 동기화 버튼은 두지 않는다. 설정의 [지금 동기화]는 시트 콘텐츠 가져오기용이며, 시작 전 서버 읽기도 수행한다.
 
 ### 3.10 마이그레이션·배포 범위 **[2026-10-08]**

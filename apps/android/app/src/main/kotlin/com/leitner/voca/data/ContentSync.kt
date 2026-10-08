@@ -77,7 +77,8 @@ suspend fun runContentSync(
     val text = try {
         fetchSheetCsv(supabase, sourceUrl)
     } catch (err: Exception) {
-        val message = err.message ?: err.toString()
+        if (err is kotlinx.coroutines.CancellationException) throw err
+        val message = "연결과 시트 공유 설정을 확인하고 다시 시도하세요."
         return ContentSyncResult(
             items = emptyList(),
             skipped = 0,

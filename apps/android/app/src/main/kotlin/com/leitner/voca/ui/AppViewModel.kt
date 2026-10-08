@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.leitner.voca.data.AppRepository
 import com.leitner.voca.data.AskTeacherContext
+import com.leitner.voca.data.userFacingSaveError
 import com.leitner.voca.domain.Card
 import com.leitner.voca.domain.Deck
 import com.leitner.voca.domain.NewPoolItem
@@ -41,7 +42,7 @@ class AppViewModel(private val repo: AppRepository) : ViewModel() {
         true
     } catch (e: Exception) {
         if (e is kotlinx.coroutines.CancellationException) throw e
-        _error.value = "서버 저장에 실패했습니다. 동기화 후 다시 시도하세요: ${e.message}"
+        _error.value = userFacingSaveError(e)
         false
     }
 
