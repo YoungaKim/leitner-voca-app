@@ -391,7 +391,7 @@ Android(Room 캐시) ← 읽기 / 저장 성공 후 반영 → Supabase(Auth + P
 - 서버에 대상 덱이 없고 기존 기기 설정의 대상 덱이 서버에 존재하면 그 필드만 최초 이관한다. 전체 캐시 설정/카드를 업로드하는 절차가 아니다.
 - 서버 기준 캐시로 처음 교체하기 전 웹은 IndexedDB `cacheBackup`에, Android는 앱 전용 SharedPreferences에 덱/카드/pool/로그 등을 1회 보관한다. 자동 병합/재업로드하지 않으며 플랫폼별 백업 범위는 다르다. 기존 기기별 `dayGoal` 스냅샷은 더 이상 목표 계산에 사용하지 않는다.
 - 웹 로그인 반환 주소는 현재 origin을 사용한다. Supabase Auth의 Redirect URLs에 `http://localhost:5173` 및 `http://localhost:5173/**`를 등록했다. Site URL은 Vercel로 유지하며 로컬 로그인은 localhost에 복귀한다.
-- DB 적용·로컬 웹 확인·웹/Android 빌드까지 완료했다. **Vercel 재배포 및 새 APK 배포는 미완료**다. 기존 union/LWW 방식 클라이언트가 남아 있으면 캐시 재업로드 문제가 계속 발생할 수 있으므로 양쪽 갱신 후 기기 간 검증을 완료해야 한다.
+- DB 적용·로컬 웹 확인·웹/Android 빌드까지 완료했다. **Vercel 운영 웹·Android 0.1.25 서명 APK의 Firebase 배포 완료**(코드 커밋 2932f80). 운영 JS가 로컬 production 빌드와 동일함을 확인했다. 기기 연결이 없어 로컬 설치는 생략했고 다기기 전체 회귀 검증은 남아 있다. 기존 union/LWW 방식 클라이언트가 남아 있으면 캐시 재업로드 문제가 계속 발생할 수 있으므로 양쪽 갱신 후 기기 간 검증을 완료해야 한다.
 - 세션의 화면 위치·입력 중인 답·힌트 상태는 기기별이다. 웹의 채점 미반영 오답 다시보기 목록도 origin별 localStorage로 남아 있으며 공통 pool 동기화 대상이 아니다.
 
 ---
