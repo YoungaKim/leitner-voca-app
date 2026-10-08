@@ -73,14 +73,15 @@ fun buildTodayQueue(
         .sortedWith(
             compareBy(
                 { it.box }, // (1) 낮은 박스 먼저
-                { it.nextReviewDate ?: "" }, // (2) 오래 밀린 것 먼저
+                { it.nextReviewDate ?: "" },
+                { it.id }, // (2) 오래 밀린 것 먼저
             )
         )
 
     // 박스0(신규)으로 남아 아직 채점되지 않은 카드 — 도입이 오래된 것 먼저.
     val leftoverNew = cards
         .filter { it.box == NEW_CARD_BOX && isDue(it) }
-        .sortedBy { it.introducedAt }
+        .sortedWith(compareBy({ it.introducedAt }, { it.id }))
 
     // maxActiveCards(WIP 상한): 박스0~6 누적 카드 수가 상한에 도달하면 신규 유입 중단(예방적 안전장치).
     val activeCount = cards.count { it.box < GRADUATED_BOX }
@@ -96,8 +97,9 @@ fun buildTodayQueue(
     val capacity = maxOf(0, settings.dailyGoal - reviewedToday - due.size - leftoverNew.size)
     // newCap은 "오늘 학습에 들어오는 신규 카드 수" 상한 — 아직 채점 못 끝낸 박스0 잔류분도
     // 신규로 쳐서 함께 제한한다(세션을 시작만 하고 안 끝낼 때마다 신규가 불어나는 것 방지).
-    val newBudget = maxOf(0, settings.newCap - leftoverNew.size)
-    val newFromPool = newPool.take(minOf(capacity, minOf(newBudget, roomUnderActiveCap)))
+    val introducedToday = cards.count { it.box != NEW_CARD_BOX && it.introducedAt.take(10) == todayStr }
+    val newBudget = maxOf(0, settings.newCap - leftoverNew.size - introducedToday)
+    val newFromPool = newPool.sortedWith(compareBy({ it.importedAt }, { it.id })).take(minOf(capacity, minOf(newBudget, roomUnderActiveCap)))
 
     return TodayQueue(due, leftoverNew, newFromPool)
 }

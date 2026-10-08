@@ -3,6 +3,9 @@ import { addDays } from "./date.js";
 import { GRADUATED_BOX, LEECH_LAPSE_THRESHOLD, NEW_CARD_BOX } from "./types.js";
 import type { Card, NewPoolItem, Settings } from "./types.js";
 
+// Match Kotlin String.compareTo so locale differences cannot change shared queue order.
+function compareSharedText(a: string, b: string): number { return a < b ? -1 : a > b ? 1 : 0; }
+
 /** DESIGN §1.3 힌트 사다리 판정.
  * correct = (힌트레벨 <= hintFreeLevel) AND (사용자가 [알았어] 선택)
  * 힌트레벨이 자유 레벨을 넘으면 [알았어]를 눌러도 무조건 오답.
@@ -128,13 +131,13 @@ export function buildTodayQueue(
     .filter((c) => c.box >= 1 && c.box < GRADUATED_BOX && isDue(c))
     .sort((a, b) => {
       if (a.box !== b.box) return a.box - b.box; // (1) 낮은 박스 먼저
-      return (a.nextReviewDate ?? "").localeCompare(b.nextReviewDate ?? ""); // (2) 오래 밀린 것 먼저
+      return (a.nextReviewDate ?? "").localeCompare(b.nextReviewDate ?? "") || compareSharedText(a.id, b.id); // (2) 오래 밀린 것 먼저
     });
 
   // 박스0(신규)으로 남아 아직 채점되지 않은 카드 — 도입이 오래된 것 먼저.
   const leftoverNew = cards
     .filter((c) => c.box === NEW_CARD_BOX && isDue(c))
-    .sort((a, b) => (a.introducedAt ?? "").localeCompare(b.introducedAt ?? ""));
+    .sort((a, b) => (a.introducedAt ?? "").localeCompare(b.introducedAt ?? "") || compareSharedText(a.id, b.id));
 
   // maxActiveCards(WIP 상한): 박스0~6 누적 카드 수가 상한에 도달하면 신규 유입 중단(예방적 안전장치).
   const activeCount = cards.filter((c) => c.box < GRADUATED_BOX).length;
@@ -154,9 +157,11 @@ export function buildTodayQueue(
   );
   // newCap은 "오늘 학습에 들어오는 신규 카드 수"의 상한 — 아직 채점 못 끝낸 박스0 잔류분도
   // 신규로 쳐서 함께 제한한다(안 그러면 세션을 시작만 하고 안 끝낼 때마다 신규가 계속 불어남).
-  const newBudget = Math.max(0, settings.newCap - leftoverNew.length);
+  const introducedToday = cards.filter(c => c.box !== NEW_CARD_BOX && c.introducedAt.slice(0, 10) === todayStr).length;
+  const newBudget = Math.max(0, settings.newCap - leftoverNew.length - introducedToday);
   const newFromPool = newPool
     .filter((p) => p.status === "pending")
+    .sort((a, b) => compareSharedText(a.importedAt, b.importedAt) || compareSharedText(a.id, b.id))
     .slice(0, Math.min(capacity, newBudget, roomUnderActiveCap));
 
   return { due, leftoverNew, newFromPool };

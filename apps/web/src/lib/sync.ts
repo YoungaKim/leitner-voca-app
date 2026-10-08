@@ -1,5 +1,5 @@
-// 2a. 로컬(IndexedDB) ↔ Supabase 클라우드 동기화. DESIGN §2.1 스키마 / §3.7 LWW / §3.9 push·pull.
-// snake_case(DB 컬럼) <-> camelCase(TS 타입) 매핑 + updatedAt 기준 Last-Write-Wins 병합.
+// 계정의 공통 Supabase 상태를 읽고, 온라인 변경을 서버에 먼저 저장한다.
+import { DEFAULT_SETTINGS } from "@leitner/core";
 import type { Card, Deck, NewPoolItem, ReviewLog, Settings, SyncState } from "@leitner/core";
 import { supabase } from "./supabase";
 
@@ -112,6 +112,7 @@ function settingsToRow(userId: string, s: Settings) {
     notify_time: s.notifyTime ?? null,
     recovery_ease: s.recoveryEase,
     content_source_url: s.contentSourceUrl ?? null,
+    content_source_deck_id: s.contentSourceDeckId ?? null,
     auto_sync_enabled: s.autoSyncEnabled,
     refill_threshold_days: s.refillThresholdDays,
     tts_auto_play: s.ttsAutoPlay,
@@ -131,6 +132,7 @@ function rowToSettings(r: any): Settings {
     notifyTime: r.notify_time ?? undefined,
     recoveryEase: r.recovery_ease,
     contentSourceUrl: r.content_source_url ?? undefined,
+    contentSourceDeckId: r.content_source_deck_id ?? undefined,
     autoSyncEnabled: r.auto_sync_enabled,
     refillThresholdDays: r.refill_threshold_days,
     ttsAutoPlay: r.tts_auto_play,
@@ -167,149 +169,121 @@ function rowToReviewLog(r: any): ReviewLog {
   };
 }
 
-export async function pushReviewLogs(userId: string, logs: ReviewLog[]): Promise<void> {
-  if (!supabase || logs.length === 0) return;
-  await supabase.from("review_log").upsert(logs.map((l) => reviewLogToRow(userId, l)));
-}
-
-// ---- LWW 병합 --------------------------------------------------------------
-
-/** id 기준 합집합, 같은 id면 updatedAt이 더 최신인 쪽이 이긴다(DESIGN §3.7). */
-export function mergeByUpdatedAt<T extends { id: string; updatedAt?: string }>(
-  local: T[],
-  remote: T[]
-): T[] {
-  const byId = new Map<string, T>();
-  for (const item of local) byId.set(item.id, item);
-  for (const item of remote) {
-    const existing = byId.get(item.id);
-    if (!existing) {
-      byId.set(item.id, item);
-      continue;
-    }
-    const existingTime = existing.updatedAt ? Date.parse(existing.updatedAt) : 0;
-    const incomingTime = item.updatedAt ? Date.parse(item.updatedAt) : 0;
-    if (incomingTime > existingTime) byId.set(item.id, item);
-  }
-  return Array.from(byId.values());
-}
-
 // ---- push (로컬 → 클라우드, upsert) ----------------------------------------
 
-export async function pushDeck(userId: string, deck: Deck): Promise<void> {
+export async function pushDeck(userId: string, deck: Deck, create = false): Promise<void> {
   if (!supabase) return;
-  await supabase.from("decks").upsert(deckToRow(userId, deck));
+  if (create) await checked(supabase.from("decks").insert(deckToRow(userId, deck)));
+  else await checked(supabase.from("decks").update({ name: deck.name, updated_at: deck.updatedAt }).eq("id", deck.id).eq("user_id", userId).select("id").single());
 }
 
-export async function pushCard(userId: string, card: Card): Promise<void> {
+export async function pushCard(userId: string, card: Card, create = false): Promise<void> {
   if (!supabase) return;
-  await supabase.from("cards").upsert(cardToRow(userId, card));
+  if (create) await checked(supabase.from("cards").insert(cardToRow(userId, card)));
+  else await checked(supabase.from("cards").update({
+    prompt_ko: card.promptKo, answer_en: card.answerEn, chunk_note: card.chunkNote ?? null,
+    tags: card.tags, updated_at: card.updatedAt,
+  }).eq("id", card.id).eq("user_id", userId).select("id").single());
 }
 
 export async function deleteCardRemote(userId: string, id: string): Promise<void> {
   if (!supabase) return;
-  await supabase.from("cards").delete().eq("user_id", userId).eq("id", id);
+  await checked(supabase.from("cards").delete().eq("user_id", userId).eq("id", id));
 }
 
 /** 덱 삭제 — schema.sql의 cards/new_pool FK가 on delete cascade라 이 한 줄로 딸린 것도 다 지워진다. */
 export async function deleteDeckRemote(userId: string, id: string): Promise<void> {
   if (!supabase) return;
-  await supabase.from("decks").delete().eq("user_id", userId).eq("id", id);
+  await checked(supabase.from("decks").delete().eq("user_id", userId).eq("id", id));
 }
 
 export async function pushPoolItems(userId: string, items: NewPoolItem[]): Promise<void> {
   if (!supabase || items.length === 0) return;
-  await supabase.from("new_pool").upsert(items.map((p) => poolToRow(userId, p)));
-}
-
-export async function deletePoolItemRemote(userId: string, id: string): Promise<void> {
-  if (!supabase) return;
-  await supabase.from("new_pool").delete().eq("user_id", userId).eq("id", id);
+  await checked(supabase.from("new_pool").upsert(items.map((p) => poolToRow(userId, p))));
 }
 
 export async function pushSettings(userId: string, settings: Settings): Promise<void> {
   if (!supabase) return;
-  await supabase.from("settings").upsert(settingsToRow(userId, settings));
+  await checked(supabase.from("settings").upsert(settingsToRow(userId, settings)));
 }
 
 // ---- sync_state (2d 콘텐츠 동기화 진행 상태) --------------------------------
 
 export async function pushSyncState(userId: string, state: SyncState): Promise<void> {
   if (!supabase) return;
-  await supabase.from("sync_state").upsert({
+  await checked(supabase.from("sync_state").upsert({
     user_id: userId,
     source_url: state.sourceUrl ?? null,
     imported_ids: state.importedIds,
     last_sync_at: state.lastSyncAt ?? null,
     last_sync_result: state.lastSyncResult ?? null,
-  });
-}
-
-async function pushAll(
-  userId: string,
-  data: { decks: Deck[]; cards: Card[]; newPool: NewPoolItem[]; settings: Settings; reviewLog: ReviewLog[] }
-): Promise<void> {
-  if (!supabase) return;
-  if (data.decks.length) await supabase.from("decks").upsert(data.decks.map((d) => deckToRow(userId, d)));
-  if (data.cards.length) await supabase.from("cards").upsert(data.cards.map((c) => cardToRow(userId, c)));
-  const pending = data.newPool.filter((p) => p.status === "pending");
-  if (pending.length) await supabase.from("new_pool").upsert(pending.map((p) => poolToRow(userId, p)));
-  await pushReviewLogs(userId, data.reviewLog);
-  await supabase.from("settings").upsert(settingsToRow(userId, data.settings));
+  }));
 }
 
 // ---- pull (클라우드 → 로컬) --------------------------------------------------
 
-async function pullAll(userId: string) {
-  if (!supabase) return { decks: [] as Deck[], cards: [] as Card[], newPool: [] as NewPoolItem[], settings: null as Settings | null, reviewLog: [] as ReviewLog[] };
-  const [decksRes, cardsRes, poolRes, settingsRes, reviewLogRes] = await Promise.all([
-    supabase.from("decks").select("*").eq("user_id", userId),
-    supabase.from("cards").select("*").eq("user_id", userId),
-    supabase.from("new_pool").select("*").eq("user_id", userId).eq("status", "pending"),
-    supabase.from("settings").select("*").eq("user_id", userId).maybeSingle(),
-    supabase.from("review_log").select("*").eq("user_id", userId),
-  ]);
-  return {
-    decks: (decksRes.data ?? []).map(rowToDeck),
-    cards: (cardsRes.data ?? []).map(rowToCard),
-    newPool: (poolRes.data ?? []).map(rowToPool),
-    settings: settingsRes.data ? rowToSettings(settingsRes.data) : null,
-    reviewLog: (reviewLogRes.data ?? []).map(rowToReviewLog),
-  };
+export async function checked<T extends { error: unknown }>(request: PromiseLike<T>): Promise<T> {
+  const result = await request;
+  if (result.error) throw result.error;
+  return result;
 }
 
-/**
- * 로그인 시점 전체 병합(§3.9). 원격 데이터를 가져와 로컬과 LWW 병합한 뒤,
- * 병합 결과를 다시 클라우드에 반영(둘 중 한쪽에만 있던 데이터가 상대에도 생기도록)한다.
- * newPool은 "이미 소비된(카드로 승격된) 항목"이 원격에 남아있으면 걸러낸다.
- */
-export async function fullSync(
-  userId: string,
-  local: { decks: Deck[]; cards: Card[]; newPool: NewPoolItem[]; settings: Settings; reviewLog: ReviewLog[] }
-): Promise<{ decks: Deck[]; cards: Card[]; newPool: NewPoolItem[]; settings: Settings; reviewLog: ReviewLog[] }> {
-  if (!supabase) return local;
-
-  const remote = await pullAll(userId);
-
-  const decks = mergeByUpdatedAt(local.decks, remote.decks);
-  const cards = mergeByUpdatedAt(local.cards, remote.cards);
-  // append-only — id 합집합만(양쪽 어디에 있든 다 살린다).
-  const reviewLogById = new Map<string, ReviewLog>();
-  for (const l of [...remote.reviewLog, ...local.reviewLog]) reviewLogById.set(l.id, l);
-  const reviewLog = Array.from(reviewLogById.values());
-  const cardIds = new Set(cards.map((c) => c.sourceId ?? c.id));
-  const poolById = new Map<string, NewPoolItem>();
-  for (const p of [...local.newPool, ...remote.newPool]) {
-    if (cardIds.has(p.id)) continue; // 이미 카드로 승격된 저수지 항목은 제외
-    poolById.set(p.id, p);
+// PostgREST caps responses at 1000 rows. Read every page in a stable order.
+async function readRows(table: string, userId: string, pendingOnly = false) {
+  if (!supabase) return [];
+  const rows: any[] = [];
+  for (let offset = 0; ; offset += 500) {
+    let query = supabase.from(table).select("*").eq("user_id", userId).order("id");
+    if (pendingOnly) query = query.eq("status", "pending");
+    const result = await checked(query.range(offset, offset + 499));
+    const page = result.data ?? [];
+    rows.push(...page);
+    if (page.length < 500) return rows;
   }
-  const newPool = Array.from(poolById.values());
+}
 
-  const settings: Settings =
-    remote.settings && (!local.settings.updatedAt || (remote.settings.updatedAt ?? "") > local.settings.updatedAt)
-      ? remote.settings
-      : local.settings;
+export async function saveReviewRemote(userId: string, card: Card, log: ReviewLog, expectedUpdatedAt?: string) {
+  if (!supabase) return;
+  await checked(supabase.rpc("save_shared_review", {
+    card_data: cardToRow(userId, card), log_data: reviewLogToRow(userId, log),
+    expected_updated_at: expectedUpdatedAt ?? null,
+  }));
+}
 
-  await pushAll(userId, { decks, cards, newPool, settings, reviewLog });
-  return { decks, cards, newPool, settings, reviewLog };
+export async function introduceRemote(userId: string, card: Card, poolId: string) {
+  if (!supabase) return;
+  const result = await checked(supabase.rpc("introduce_shared_card", {
+    card_data: cardToRow(userId, card), pool_id: poolId,
+  }));
+  return rowToCard(result.data);
+}
+
+/** Cloud is authoritative. Never upload an old cache during a read/sync. */
+export async function fullSync(userId: string, _local?: { settings: Settings }) {
+  if (!supabase) throw new Error("클라우드가 설정되지 않았습니다.");
+  const [decks, cards, newPool, reviewLog, settingsResult, syncResult] = await Promise.all([
+    readRows("decks", userId), readRows("cards", userId), readRows("new_pool", userId, true),
+    readRows("review_log", userId),
+    checked(supabase.from("settings").select("*").eq("user_id", userId).maybeSingle()),
+    checked(supabase.from("sync_state").select("*").eq("user_id", userId).maybeSingle()),
+  ]);
+  const legacyTarget = _local?.settings.contentSourceDeckId;
+  if (settingsResult.data && !settingsResult.data.content_source_deck_id && legacyTarget && decks.some(d => d.id === legacyTarget)) {
+    await checked(supabase.from("settings").update({ content_source_deck_id: legacyTarget }).eq("user_id", userId));
+    settingsResult.data.content_source_deck_id = legacyTarget;
+  }
+  const mappedCards = cards.map(rowToCard);
+  const consumed = new Set(mappedCards.map(c => c.sourceId ?? c.id));
+  return {
+    decks: decks.map(rowToDeck), cards: mappedCards,
+    newPool: newPool.map(rowToPool).filter(p => !consumed.has(p.id)),
+    reviewLog: reviewLog.map(rowToReviewLog),
+    settings: settingsResult.data ? { ...DEFAULT_SETTINGS, ...rowToSettings(settingsResult.data) } : DEFAULT_SETTINGS,
+    syncState: syncResult.data ? {
+      sourceUrl: syncResult.data.source_url ?? undefined,
+      importedIds: syncResult.data.imported_ids ?? [],
+      lastSyncAt: syncResult.data.last_sync_at ?? undefined,
+      lastSyncResult: syncResult.data.last_sync_result ?? undefined,
+    } as SyncState : { importedIds: [] } as SyncState,
+  };
 }

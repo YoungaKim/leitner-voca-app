@@ -6,7 +6,7 @@
 // 칸 위 숫자는 절대 개수, %는 채움 높이와 반드시 같은 기준(가장 많은 박스=100%)이어야
 // "칸은 꽉 차 보이는데 %는 낮다" 같은 모순이 안 생긴다. 빈 박스는 점선 테두리만.
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { GRADUATED_BOX, NEW_CARD_BOX, buildTodayQueue, today as todayStr } from "@leitner/core";
 import { useAppStore } from "../store";
 import { needsRefill } from "../lib/contentSync";
@@ -28,6 +28,16 @@ const COL_GAP = 4;
 const COL_W = (CHART_W - COL_GAP * 7) / 8;
 
 export default function HomePage() {
+  const navigate = useNavigate();
+  const [starting, setStarting] = useState(false);
+  async function startSession() {
+    if (starting) return;
+    setStarting(true);
+    try {
+      await useAppStore.getState().syncNow();
+      if (!useAppStore.getState().cloudError) navigate("/session");
+    } finally { setStarting(false); }
+  }
   const decks = useAppStore((s) => s.decks);
   const cards = useAppStore((s) => s.cards);
   const newPool = useAppStore((s) => s.newPool);
@@ -56,66 +66,18 @@ export default function HomePage() {
     dueToday.filter((c) => c.box === i + 1).length
   );
   const queueBreakdown = [
-    `신규 ${queueNewCount}`,
+    `남은 신규 ${queueNewCount}`,
     ...dueByBox.map((n, i) => (n > 0 ? `박스${i + 1} ${n}` : null)).filter(Boolean),
   ].join(" · ");
 
-  // "오늘 목표"는 큐 잔량(계속 변함)이 아니라 하루 1회 고정한 숫자로 보여준다.
-  // 그날 처음 홈을 열 때 (지금 남은 오늘치 + 오늘 이미 채점한 수)를 스냅샷해 localStorage에 저장,
-  // 자정 지나 날짜가 바뀌면 다시 스냅샷. 완료 수(오늘 채점한 카드)는 단조 증가라 흔들리지 않는다.
-  // lastReviewedAt은 로컬 채점 직후엔 "YYYY-MM-DD"지만 클라우드(timestamptz) 왕복 후엔
-  // "YYYY-MM-DDTHH:mm:ss+00:00"로 돌아온다 — 앞 10자만 비교해 둘 다 처리.
   const reviewedToday = useMemo(
     () => cards.filter((c) => (c.lastReviewedAt ?? "").slice(0, 10) === todayStr()).length,
     [cards]
   );
-  type GoalSnapshot = { date: string; total: number; newCount: number; box: number[] };
-  const [dayGoal, setDayGoal] = useState<GoalSnapshot | null>(null);
-  useEffect(() => {
-    // 재로그인/동기화 도중 cards가 잠깐 []가 되는데, 그때 스냅샷하면 목표가 0으로 굳는다.
-    // 카드가 실제로 있을 때까지 미룬다.
-    if (cards.length === 0) return;
-    const t = todayStr();
-    let saved: GoalSnapshot | null = null;
-    try {
-      const raw = localStorage.getItem("dayGoal");
-      saved = raw ? JSON.parse(raw) : null;
-    } catch {
-      /* 비공개 모드 등 — 스냅샷 없이 진행 */
-    }
-    // 오늘 날짜의 유효한(>0) 스냅샷이 있으면 그대로 쓰고, 없거나 0(빈 상태에서 저장된 것)이거나
-    // 예전 스키마({date,total}만 있고 newCount/box가 없는 값)면 재스냅샷한다.
-    // (구 스키마를 그대로 믿으면 아래 goalBreakdown의 dayGoal.box.map()에서 죽는다.)
-    if (saved && saved.date === t && saved.total > 0 && Array.isArray(saved.box)) {
-      setDayGoal(saved);
-      return;
-    }
-    const total = dueToday.length + queueNewCount + reviewedToday;
-    // 목표 구성 내역(신규/박스별)도 총합과 같은 시점에 함께 얼려서, 화면에 보이는
-    // "신규 N · 박스1 M · ..." 합이 항상 "오늘 목표 165개"와 일치하게 한다.
-    const snapshot: GoalSnapshot = { date: t, total, newCount: queueNewCount, box: dueByBox };
-    if (total > 0) {
-      try {
-        localStorage.setItem("dayGoal", JSON.stringify(snapshot));
-      } catch {
-        /* 저장 실패해도 이번 세션 값은 아래 setDayGoal로 유지 */
-      }
-    }
-    setDayGoal(snapshot);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards.length, dueToday.length, queueNewCount, reviewedToday]);
-  const goalTotal = dayGoal?.total ?? todayCount + reviewedToday;
+  // All devices derive the same goal from synchronized cards/pool; no per-origin snapshot.
+  const goalTotal = todayCount + reviewedToday;
   const goalPct = Math.min(100, Math.round((reviewedToday / Math.max(1, goalTotal)) * 100));
-  // "오늘 목표"는 하루 1회 고정이므로, 그 구성 내역도 스냅샷 값을 그대로 보여줘야
-  // "신규 N · 박스1 M · ..." 합이 위 "오늘 목표 165개"와 어긋나지 않는다.
-  // (queueBreakdown은 실시간 잔여 큐라 학습 진행 중엔 총합이 goalTotal보다 작아진다.)
-  const goalBreakdown =
-    dayGoal && Array.isArray(dayGoal.box)
-      ? [
-          `신규 ${dayGoal.newCount}`,
-          ...dayGoal.box.map((n, i) => (n > 0 ? `박스${i + 1} ${n}` : null)).filter(Boolean),
-        ].join(" · ")
-      : queueBreakdown;
+  const goalBreakdown = queueBreakdown;
   // 세션에서 저장하는 localStorage 값이라 zustand 구독이 안 돼 홈에 다시 돌아올 때(포커스 복귀)
   // 마다 다시 읽어야 한다 — 세션 갔다가 몰랐어를 누르고 바로 나와도 이 값이 반영되게.
   const [pendingRetryCount, setPendingRetryCount] = useState(0);
@@ -159,7 +121,7 @@ export default function HomePage() {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [reviewedToday]);
+  }, [cards]);
   // 위 CTA 세 갈래(진행 중/다시보기/완전 종료)에서 공통으로 쓰는 "신규 A · 승급 B · 강등 C · 유지 D"
   // 한 줄 — 넷 다 서로 겹치지 않게 셌으니(신규→박스1은 승급이 아니라 신규로만 집계) 그대로
   // 다 더하면 오늘 채점 총량과 같다.
@@ -313,16 +275,16 @@ export default function HomePage() {
           <div className="cta-progress" aria-hidden>
             <i style={{ width: `${goalPct}%` }} />
           </div>
-          {/* 오늘 목표를 이룬 구성 내역 — 목표와 같은 시점에 얼린 값이라 합이 항상 goalTotal과 같다. */}
+          {/* 실시간 잔여 학습 내역 */}
           <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem" }}>
             {goalBreakdown}
           </div>
           <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem", marginBottom: 12 }}>
             {boxTallyLine}
           </div>
-          <Link className="btn primary large" to="/session">
-            학습 시작
-          </Link>
+          <button className="btn primary large" disabled={starting} onClick={startSession}>
+            {starting ? "동기화 중..." : "학습 시작"}
+          </button>
         </section>
       ) : pendingRetryCount > 0 ? (
         // 오늘 채점할 신규/복습은 다 끝났지만, 지난 세션에서 틀려서 "다시 보기"(채점 미반영
@@ -336,9 +298,9 @@ export default function HomePage() {
           <div className="cta-breakdown" style={{ color: "#9aa0a6", fontSize: "0.85rem", marginBottom: 12 }}>
             아직 다 못 본 오늘 틀린 카드 {pendingRetryCount}개 — 채점엔 반영 안 돼요
           </div>
-          <Link className="btn primary large" to="/session">
+          <button className="btn primary large" disabled={starting} onClick={startSession}>
             다시 보기
-          </Link>
+          </button>
         </section>
       ) : (
         <section className="cta">

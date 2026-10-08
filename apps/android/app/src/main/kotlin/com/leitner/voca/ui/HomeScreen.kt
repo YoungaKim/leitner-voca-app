@@ -20,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.leitner.voca.domain.GRADUATED_BOX
 import com.leitner.voca.domain.buildTodayQueue
@@ -63,7 +62,7 @@ fun HomeScreen(
     val todayCount = queue.due.size + queue.leftoverNew.size + queue.newFromPool.size
     val queueNewCount = queue.leftoverNew.size + queue.newFromPool.size
     val queueBreakdown = buildString {
-        append("신규 $queueNewCount")
+        append("남은 신규 $queueNewCount")
         (1..6).forEach { box ->
             val n = queue.due.count { it.box == box }
             if (n > 0) append(" · 박스$box $n")
@@ -73,30 +72,9 @@ fun HomeScreen(
     val mastered = state.cards.count { it.box == GRADUATED_BOX }
     val boxCounts = (1..GRADUATED_BOX).map { box -> state.cards.count { it.box == box } }
 
-    // PC 웹 HomePage와 동일: "오늘 목표"는 계속 변하는 큐 잔량이 아니라 하루 1회 고정한 숫자.
-    // 그날 처음 홈을 열 때 (남은 오늘치 + 오늘 이미 채점한 수)를 SharedPreferences에 스냅샷하고,
-    // 날짜가 바뀌면 다시 스냅샷. lastReviewedAt은 로컬 채점 직후엔 "YYYY-MM-DD", 클라우드
-    // 왕복 후엔 "...THH:mm:ss+00:00"이라 앞 10자만 비교한다.
-    val context = LocalContext.current
+    // Same synchronized cards/pool produce the same goal on every device.
     val reviewedToday = state.cards.count { (it.lastReviewedAt ?: "").take(10) == today() }
-    val goalTotal = remember(state.cards, todayCount, reviewedToday) {
-        val t = today()
-        val prefs = context.getSharedPreferences("voca_home", android.content.Context.MODE_PRIVATE)
-        val savedDate = prefs.getString("dayGoalDate", null)
-        val savedTotal = prefs.getInt("dayGoalTotal", 0)
-        when {
-            // 재로그인/동기화 중 cards가 잠깐 비면 스냅샷하지 않는다(목표가 0으로 굳는 것 방지).
-            state.cards.isEmpty() -> maxOf(savedTotal, todayCount + reviewedToday)
-            savedDate == t && savedTotal > 0 -> savedTotal
-            else -> {
-                val total = todayCount + reviewedToday
-                if (total > 0) {
-                    prefs.edit().putString("dayGoalDate", t).putInt("dayGoalTotal", total).apply()
-                }
-                total
-            }
-        }
-    }
+    val goalTotal = todayCount + reviewedToday
     val goalPct = min(100, ((reviewedToday.toFloat() / maxOf(1, goalTotal)) * 100).roundToInt())
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {

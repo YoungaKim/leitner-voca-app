@@ -1,11 +1,12 @@
 // DESIGN §2 로컬 엔티티를 IndexedDB(idb)에 저장하는 리포지토리 계층.
-// MVP 범위: 로컬 저장만. Supabase 동기화는 이번 범위 제외(§2.1/§3.7/§3.9, 다음 이터레이션).
+// 로그인된 계정에서는 Supabase의 공통 상태를 캐시하며 동기화 시 전체 교체한다.
 import { openDB } from "idb";
 import type { DBSchema, IDBPDatabase } from "idb";
 import { DEFAULT_SETTINGS } from "@leitner/core";
 import type { Card, Deck, NewPoolItem, ReviewLog, Settings, SyncState } from "@leitner/core";
 
 interface LeitnerDB extends DBSchema {
+  cacheBackup: { key: string; value: unknown };
   decks: { key: string; value: Deck };
   cards: { key: string; value: Card; indexes: { byDeck: string } };
   newPool: { key: string; value: NewPoolItem; indexes: { byDeck: string } };
@@ -15,7 +16,7 @@ interface LeitnerDB extends DBSchema {
 }
 
 const DB_NAME = "leitner-voca";
-const DB_VERSION = 2; // v2: syncState 스토어 추가(2d)
+const DB_VERSION = 3; // v3: 공통 서버 상태로 전환하기 전 캐시 백업
 const SETTINGS_KEY = "singleton";
 const SYNC_STATE_KEY = "singleton";
 
@@ -34,6 +35,7 @@ function getDB(): Promise<IDBPDatabase<LeitnerDB>> {
           db.createObjectStore("reviewLog", { keyPath: "id" });
           db.createObjectStore("settings");
         }
+        if (oldVersion < 3) db.createObjectStore("cacheBackup");
         if (oldVersion < 2) {
           db.createObjectStore("syncState");
         }
@@ -165,6 +167,7 @@ export const syncStateRepo = {
 export async function clearAllLocal(): Promise<void> {
   const db = await getDB();
   await Promise.all([
+    db.clear("cacheBackup"),
     db.clear("decks"),
     db.clear("cards"),
     db.clear("newPool"),
@@ -172,4 +175,27 @@ export async function clearAllLocal(): Promise<void> {
     db.clear("settings"),
     db.clear("syncState"),
   ]);
+}
+
+/** Replace all stores together so deleted/consumed records cannot survive a sync. */
+export async function replaceCloudCache(snapshot: {
+  decks: Deck[]; cards: Card[]; newPool: NewPoolItem[]; reviewLog: ReviewLog[];
+  settings: Settings; syncState: SyncState;
+}): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(["cacheBackup", "decks", "cards", "newPool", "reviewLog", "settings", "syncState"], "readwrite");
+  const backup = tx.objectStore("cacheBackup");
+  if (!(await backup.get("before-cloud-authority"))) {
+    const stores = ["decks", "cards", "newPool", "reviewLog", "settings", "syncState"] as const;
+    const values = await Promise.all(stores.map(name => tx.objectStore(name).getAll()));
+    await backup.put(Object.fromEntries(stores.map((name, i) => [name, values[i]])), "before-cloud-authority");
+  }
+  for (const name of ["decks", "cards", "newPool", "reviewLog"] as const) {
+    const store = tx.objectStore(name);
+    await store.clear();
+    for (const value of snapshot[name]) await store.put(value as never);
+  }
+  await tx.objectStore("settings").put(snapshot.settings, SETTINGS_KEY);
+  await tx.objectStore("syncState").put(snapshot.syncState, SYNC_STATE_KEY);
+  await tx.done;
 }

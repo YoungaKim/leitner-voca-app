@@ -9,19 +9,18 @@ import com.leitner.voca.domain.ReviewLog
 import com.leitner.voca.domain.Settings
 import com.leitner.voca.domain.SyncState
 import io.github.jan.supabase.SupabaseClient
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import androidx.room.withTransaction
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.util.UUID
 
-// PC 웹 store.ts와 대응되는 리포지토리. 2c부터 로그인 상태면 로컬 저장과 동시에 클라우드에도
-// 반영한다(write-through, PC 웹과 동일 원칙) — 실패해도 로컬 저장은 이미 끝났으니 UI는 안 막고,
-// 다음 fullSync에서 다시 맞춰진다.
+// 로그인된 계정은 서버 저장에 성공한 뒤 Room 캐시를 갱신한다.
 class AppRepository(
     private val db: AppDatabase,
     private val auth: AuthRepository,
@@ -38,33 +37,34 @@ class AppRepository(
     val settings: Flow<Settings> = db.settingsDao().observe().map { it?.toDomain() ?: Settings.DEFAULT }
     val syncState: Flow<SyncState> = db.syncStateDao().observe().map { it?.toDomain() ?: SyncState.DEFAULT }
 
-    // 앱 생명주기 동안 살아있는 백그라운드 스코프 — write-through는 UI를 기다리게 하면 안 돼서
-    // (PC 웹 mirrorToCloud와 동일 원칙) 별도 스코프에서 fire-and-forget으로 던진다.
-    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val dataMutex = Mutex()
 
-    private fun mirror(block: suspend (userId: String) -> Unit) {
-        val userId = auth.currentUserId() ?: return
-        backgroundScope.launch { runCatching { block(userId) } }
+    // Online writes must succeed before committing the local cache or advancing a review.
+    private suspend fun mirror(block: suspend (userId: String) -> Unit) {
+        val userId = auth.currentUserId() ?: error("로그인이 필요합니다.")
+        block(userId)
     }
 
-    suspend fun addDeck(name: String, description: String? = null, examDate: String? = null): Deck {
+    suspend fun addDeck(name: String, description: String? = null, examDate: String? = null): Deck = dataMutex.withLock {
         val now = Instant.now().toString()
         val deck = Deck(id = UUID.randomUUID().toString(), name = name, description = description, examDate = examDate, createdAt = now, updatedAt = now)
-        db.deckDao().upsert(deck.toEntity())
         mirror { userId -> sync.pushDeck(userId, deck) }
-        return deck
+        db.deckDao().upsert(deck.toEntity())
+
+        deck
     }
 
     /** 덱 삭제 + 딸린 카드/저수지 항목까지 cascade(PC 웹 store.ts deleteDeck과 동일 의도).
      * 클라우드 쪽은 schema.sql의 FK on delete cascade가 알아서 처리한다. */
-    suspend fun deleteDeck(id: String) {
+    suspend fun deleteDeck(id: String) = dataMutex.withLock {
+        mirror { userId -> sync.deleteDeckRemote(userId, id) }
         db.cardDao().deleteByDeck(id)
         db.newPoolDao().deleteByDeck(id)
         db.deckDao().delete(id)
-        mirror { userId -> sync.deleteDeckRemote(userId, id) }
+
     }
 
-    suspend fun addCard(deckId: String, promptKo: String, answerEn: String, chunkNote: String?, today: String): Card {
+    suspend fun addCard(deckId: String, promptKo: String, answerEn: String, chunkNote: String?, today: String): Card = dataMutex.withLock {
         val now = Instant.now().toString()
         val card = Card(
             id = UUID.randomUUID().toString(), deckId = deckId, promptKo = promptKo, answerEn = answerEn,
@@ -72,52 +72,52 @@ class AppRepository(
             chunkNote = chunkNote, box = NEW_CARD_BOX, nextReviewDate = today, lastReviewedAt = null,
             correctStreak = 0, lapseCount = 0, introducedAt = today, tags = emptyList(), updatedAt = now,
         )
+        mirror { userId -> sync.pushCard(userId, card, true) }
         db.cardDao().upsert(card.toEntity())
-        mirror { userId -> sync.pushCard(userId, card) }
-        return card
+
+        card
     }
 
-    suspend fun updateCard(card: Card) {
+    suspend fun updateCard(card: Card) = dataMutex.withLock {
         val updated = card.copy(updatedAt = Instant.now().toString())
-        db.cardDao().upsert(updated.toEntity())
         mirror { userId -> sync.pushCard(userId, updated) }
+        db.cardDao().upsert(updated.toEntity())
+
     }
 
-    suspend fun deleteCard(id: String) {
-        db.cardDao().delete(id)
+    suspend fun deleteCard(id: String) = dataMutex.withLock {
         mirror { userId -> sync.deleteCardRemote(userId, id) }
+        db.cardDao().delete(id)
+
     }
 
-    suspend fun importNewPoolItems(items: List<NewPoolItem>) {
-        if (items.isEmpty()) return
-        db.newPoolDao().upsertAll(items.map { it.toEntity() })
+    suspend fun importNewPoolItems(items: List<NewPoolItem>) = dataMutex.withLock {
+        if (items.isEmpty()) return@withLock
         mirror { userId -> sync.pushPoolItems(userId, items) }
+        db.newPoolDao().upsertAll(items.map { it.toEntity() })
+
     }
 
-    suspend fun applyReview(updated: Card, log: ReviewLog) {
+    suspend fun applyReview(updated: Card, log: ReviewLog) = dataMutex.withLock {
         val card = updated.copy(updatedAt = Instant.now().toString())
+        mirror { userId -> sync.saveReview(userId, card, log, cards.first().find { it.id == card.id }?.updatedAt) }
         db.cardDao().upsert(card.toEntity())
         db.reviewLogDao().insert(log.toEntity())
-        mirror { userId ->
-            sync.pushCard(userId, card)
-            sync.pushReviewLogs(userId, listOf(log))
-        }
+
     }
 
-    suspend fun introduceCard(card: Card, poolId: String) {
-        val withTimestamp = card.copy(updatedAt = Instant.now().toString())
+    suspend fun introduceCard(card: Card, poolId: String) = dataMutex.withLock {
+        val withTimestamp = sync.introduceCard(auth.currentUserId() ?: error("로그인이 필요합니다."), card.copy(updatedAt = Instant.now().toString()), poolId)
         db.cardDao().upsert(withTimestamp.toEntity())
         db.newPoolDao().delete(poolId)
-        mirror { userId ->
-            sync.pushCard(userId, withTimestamp)
-            sync.deletePoolItemRemote(userId, poolId)
-        }
+
     }
 
-    suspend fun updateSettings(settings: Settings) {
+    suspend fun updateSettings(settings: Settings) = dataMutex.withLock {
         val updated = settings.copy(updatedAt = Instant.now().toString())
-        db.settingsDao().upsert(updated.toEntity())
         mirror { userId -> sync.pushSettings(userId, updated) }
+        db.settingsDao().upsert(updated.toEntity())
+
     }
 
     /** 2d — "지금 동기화": 구글시트에서 새 문장을 읽어와 저수지에 흡수하고, 진행 상태를 저장한다.
@@ -125,8 +125,9 @@ class AppRepository(
     suspend fun syncContentNow(sourceUrl: String, targetDeckId: String): ContentSyncResult {
         val result = runContentSync(supabase, sourceUrl, targetDeckId, cards.first(), newPool.first(), syncState.first())
         if (result.items.isNotEmpty()) importNewPoolItems(result.items)
-        db.syncStateDao().upsert(result.syncState.toEntity())
         mirror { userId -> sync.pushSyncState(userId, result.syncState) }
+        db.syncStateDao().upsert(result.syncState.toEntity())
+
         return result
     }
 
@@ -135,7 +136,7 @@ class AppRepository(
         requestAskTeacher(supabase, model, question, context)
 
     /** 로그인 직후 1회 호출 — 클라우드와 병합해 로컬(Room)을 덮어쓴다(PC 웹 store.ts mergeFromCloud). */
-    suspend fun mergeFromCloud(userId: String) {
+    suspend fun mergeFromCloud(userId: String) = dataMutex.withLock {
         // 이 기기에 마지막으로 로그인했던 계정과 다르면, 이전 계정의 로컬 캐시가 새 계정 데이터와
         // 섞이거나(심지어 클라우드로 push까지 돼) 계정 간 데이터가 오염되므로 병합 전에 로컬을
         // 완전히 비운다(PC 웹 store.ts mergeFromCloud와 동일 로직).
@@ -147,12 +148,34 @@ class AppRepository(
             db.reviewLogDao().getAll().map { it.toDomain() },
         )
         val merged = sync.fullSync(userId, local)
-        merged.decks.forEach { db.deckDao().upsert(it.toEntity()) }
-        db.cardDao().upsertAll(merged.cards.map { it.toEntity() })
-        db.newPoolDao().upsertAll(merged.newPool.map { it.toEntity() })
-        db.reviewLogDao().insertAll(merged.reviewLog.map { it.toEntity() })
-        merged.settings?.let { db.settingsDao().upsert(it.toEntity()) }
+        val sharedSyncState = sync.pullSyncState(userId)
+        // Preserve the pre-migration cache in private preferences for recovery; never upload it.
+        if (!prefs.contains("before_cloud_authority")) {
+            val backup = kotlinx.serialization.json.buildJsonObject {
+                put("decks", Json.encodeToJsonElement(local.decks.map { it.toRow(userId) }))
+                put("cards", Json.encodeToJsonElement(local.cards.map { it.toRow(userId) }))
+                put("pool", Json.encodeToJsonElement(local.newPool.map { it.toRow(userId) }))
+                put("logs", Json.encodeToJsonElement(local.reviewLog.map { it.toRow(userId) }))
+            }
+            check(prefs.edit().putString("before_cloud_authority", backup.toString()).commit())
+        }
+        db.withTransaction {
+            db.cardDao().clear()
+            db.newPoolDao().clear()
+            db.deckDao().clear()
+            db.reviewLogDao().clear()
+            merged.decks.forEach { db.deckDao().upsert(it.toEntity()) }
+            db.cardDao().upsertAll(merged.cards.map { it.toEntity() })
+            db.newPoolDao().upsertAll(merged.newPool.map { it.toEntity() })
+            db.reviewLogDao().insertAll(merged.reviewLog.map { it.toEntity() })
+            merged.settings?.let { db.settingsDao().upsert(it.toEntity()) }
+            db.syncStateDao().upsert(sharedSyncState.toEntity())
+        }
         prefs.edit().putString(LAST_SYNCED_USER_KEY, userId).apply()
+    }
+
+    suspend fun refreshFromCloud() {
+        mergeFromCloud(auth.currentUserId() ?: error("로그인이 필요합니다."))
     }
 
     /** 로그아웃/계정 전환 시 — 클라우드에 이미 저장돼 있으니 로컬 캐시만 비운다(PC 웹 resetLocal과 동일). */

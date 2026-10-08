@@ -118,7 +118,9 @@ private fun AuthenticatedApp(
         return
     }
 
+    val saveError by viewModel.error.collectAsState()
     Column(Modifier.fillMaxSize()) {
+        saveError?.let { Text(it, modifier = Modifier.padding(8.dp)) }
         Row(
             Modifier.fillMaxWidth().padding(8.dp),
             horizontalArrangement = Arrangement.End,
@@ -129,7 +131,7 @@ private fun AuthenticatedApp(
             composable("home") {
                 HomeScreen(
                     state = state,
-                    onStartSession = { navController.navigate("session") },
+                    onStartSession = { viewModel.refreshThenStart { navController.navigate("session") } },
                     onGoDecks = { navController.navigate("decks") },
                     onOpenSettings = { navController.navigate("settings") },
                 )

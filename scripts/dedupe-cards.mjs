@@ -28,11 +28,14 @@ const { data: cards, error } = await db
   .select("id, user_id, source_id, prompt_ko, answer_en, box, correct_streak, updated_at");
 if (error) throw error;
 
-// 그룹 키: source_id 우선, 없으면 문장 내용.
+// source_id가 달라도 같은 한글·영문 문장이면 같은 카드다.
+// 앱의 sentenceKey와 동일하게 공백을 정리하고 영문 대소문자는 무시한다.
+const normalize = (text) => String(text ?? "").trim().replace(/\s+/g, " ");
 const groupKey = (c) =>
-  `${c.user_id}::${c.source_id ?? `${c.prompt_ko}${c.answer_en}`}`;
+  `${c.user_id}::${normalize(c.prompt_ko)}\u0001${normalize(c.answer_en).toLowerCase()}`;
 
 // 남길 카드 우선순위: 박스 높은 것 → correct_streak 높은 것 → 최근 updated_at.
+// 따라서 같은 문장은 박스가 낮은 카드부터 삭제된다.
 const better = (a, b) =>
   b.box - a.box ||
   (b.correct_streak ?? 0) - (a.correct_streak ?? 0) ||
@@ -67,6 +70,9 @@ if (!APPLY) {
 
 for (let i = 0; i < toDelete.length; i += 100) {
   const ids = toDelete.slice(i, i + 100).map((c) => c.id);
+  // review_log에는 cards FK가 없으므로 먼저 함께 지워 고아 학습 기록을 남기지 않는다.
+  const { error: logDelErr } = await db.from("review_log").delete().in("card_id", ids);
+  if (logDelErr) throw logDelErr;
   const { error: delErr } = await db.from("cards").delete().in("id", ids);
   if (delErr) throw delErr;
   console.log(`삭제 ${Math.min(i + 100, toDelete.length)}/${toDelete.length}`);

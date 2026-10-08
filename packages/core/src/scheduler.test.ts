@@ -315,3 +315,19 @@ describe("applyExamCompression — D-day 주기 클램프", () => {
     expect(applyExamCompression(3, settings.intervals, 0)).toBe(1);
   });
 });
+
+describe("shared pool across devices", () => {
+  const pool = ["p3", "p1", "p2"].map(id => ({ id, deckId: "d1", promptKo: id, answerEn: id, status: "pending" as const, importedAt: "2026-08-01" }));
+  it("chooses the same new cards regardless of cache insertion order", () => {
+    const config = { ...settings, newCap: 2 };
+    const a = buildTodayQueue([], pool, config, "2026-08-24").newFromPool;
+    const b = buildTodayQueue([], [...pool].reverse(), config, "2026-08-24").newFromPool;
+    expect(a.map(p => p.id)).toEqual(["p1", "p2"]);
+    expect(a).toEqual(b);
+  });
+  it("does not reset the daily new-card budget after grading on another device", () => {
+    const graded = makeCard({ introducedAt: "2026-08-24T00:00:00Z", lastReviewedAt: "2026-08-24", nextReviewDate: "2026-08-25" });
+    const q = buildTodayQueue([graded], pool, { ...settings, newCap: 2 }, "2026-08-24");
+    expect(q.newFromPool).toHaveLength(1);
+  });
+});

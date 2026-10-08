@@ -12,13 +12,19 @@ import java.time.Instant
 // contentId와 완전히 동일한 FNV-1a 32bit 계산이라 같은 문장이면 웹/안드로이드가 같은 id를 낸다.
 // (시트에서 문장을 고치면 그 행은 새 id → 새 항목이 된다 — id 변경과 동일.)
 internal fun contentId(promptKo: String, answerEn: String): String {
-    val s = promptKo + answerEn
+    val s = promptKo + '\u0001' + answerEn
     var h = 0x811c9dc5.toInt() // FNV-1a offset basis
     for (ch in s) {
         h = h xor ch.code       // JS charCodeAt(i) == UTF-16 code unit (한글은 BMP라 동일)
         h *= 0x01000193         // Int*Int는 하위 32bit로 wrap → JS Math.imul과 동일
     }
     return "h" + (h.toLong() and 0xFFFFFFFFL).toString(36)
+}
+
+/** 원천 id와 무관한 문장 중복 판정 키. PC 웹 sentenceKey와 동일 규칙. */
+internal fun sentenceKey(promptKo: String, answerEn: String): String {
+    fun normalize(text: String) = text.trim().replace(Regex("\\s+"), " ")
+    return normalize(promptKo) + '\u0001' + normalize(answerEn).lowercase()
 }
 
 data class ParsedCsvRow(
@@ -113,18 +119,25 @@ fun parseCsv(text: String): CsvParseResult {
 }
 
 /** §3.4 id 기준 dedupe — 이미 가져온 id는 건너뛰고 새 id만 NewPool로 흡수. */
-fun toNewPoolItems(rows: List<ParsedCsvRow>, deckId: String, alreadyImportedIds: Set<String>): Pair<List<NewPoolItem>, Int> {
+fun toNewPoolItems(
+    rows: List<ParsedCsvRow>,
+    deckId: String,
+    alreadyImportedIds: Set<String>,
+    alreadyImportedSentenceKeys: MutableSet<String> = mutableSetOf(),
+): Pair<List<NewPoolItem>, Int> {
     val now = Instant.now().toString()
     val items = mutableListOf<NewPoolItem>()
     var skipped = 0
     for (row in rows) {
-        if (row.id in alreadyImportedIds) { skipped++; continue }
+        val key = sentenceKey(row.promptKo, row.answerEn)
+        if (row.id in alreadyImportedIds || key in alreadyImportedSentenceKeys) { skipped++; continue }
         items.add(
             NewPoolItem(
                 id = row.id, deckId = deckId, promptKo = row.promptKo, answerEn = row.answerEn,
                 chunkNote = row.chunkNote, level = row.level, topic = row.topic, importedAt = now,
             )
         )
+        alreadyImportedSentenceKeys.add(key)
     }
     return items to skipped
 }

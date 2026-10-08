@@ -200,4 +200,19 @@ class SchedulerTest {
         assertEquals("sheet-42", a.sourceId)
         assertEquals(a.id, b.id) // 결정적 — 랜덤 uuid 아님
     }
+
+    @Test fun sharedPoolOrderDoesNotDependOnCacheInsertionOrder() {
+        val pool = listOf("p3", "p1", "p2").map { NewPoolItem(id = it, deckId = "d1", promptKo = it, answerEn = it, importedAt = "2026-08-01") }
+        val config = settings.copy(newCap = 2)
+        val a = buildTodayQueue(emptyList(), pool, config, "2026-08-24").newFromPool
+        val b = buildTodayQueue(emptyList(), pool.reversed(), config, "2026-08-24").newFromPool
+        assertEquals(listOf("p1", "p2"), a.map { it.id })
+        assertEquals(a, b)
+    }
+
+    @Test fun dailyNewBudgetIncludesCardsGradedOnAnotherDevice() {
+        val card = makeCard(introducedAt = "2026-08-24T00:00:00Z", lastReviewedAt = "2026-08-24", nextReviewDate = "2026-08-25")
+        val pool = (1..3).map { NewPoolItem(id = "p$it", deckId = "d1", promptKo = "$it", answerEn = "$it", importedAt = "2026-08-01") }
+        assertEquals(1, buildTodayQueue(listOf(card), pool, settings.copy(newCap = 2), "2026-08-24").newFromPool.size)
+    }
 }

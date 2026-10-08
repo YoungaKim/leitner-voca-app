@@ -22,6 +22,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,11 +52,13 @@ private sealed interface QueueItem {
 @Composable
 fun StudySessionScreen(
     state: AppUiState,
-    onApplyReview: (cardId: String, updated: Card, log: ReviewLog) -> Unit,
-    onIntroduce: (card: Card, poolId: String) -> Unit,
+    onApplyReview: suspend (cardId: String, updated: Card, log: ReviewLog) -> Boolean,
+    onIntroduce: suspend (card: Card, poolId: String) -> Boolean,
     onAskTeacher: (model: String, question: String, context: AskTeacherContext, onResult: (Result<String>) -> Unit) -> Unit,
     onClose: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
+    var saving by remember { mutableStateOf(false) }
     val speak = rememberSpeaker()
     // 세션 시작 시점의 큐를 한 번만 계산해서 고정한다(PC 웹 StudySessionPage와 동일 원칙,
     // useMemo(..., []) 대응) — remember에 키를 안 줘서 이후 state.cards가 바뀌어도(채점 결과
@@ -108,40 +112,39 @@ fun StudySessionScreen(
     }
 
     fun grade(userClaimedKnew: Boolean) {
-        val correct = isCorrect(hintLevel, userClaimedKnew, state.settings)
-        when (item) {
-            is QueueItem.Existing -> {
-                val updated = onAnswer(item.card, correct, state.settings, today())
+        if (saving) return
+        saving = true
+        scope.launch {
+            try {
+                val correct = isCorrect(hintLevel, userClaimedKnew, state.settings)
+                val original = when (item) {
+                    is QueueItem.Existing -> item.card
+                    is QueueItem.FromPool -> introduceFromPool(item.pool, today()).also {
+                        if (!onIntroduce(it, item.pool.id)) return@launch
+                    }
+                }
+                val updated = onAnswer(original, correct, state.settings, today())
                 val log = ReviewLog(
-                    id = java.util.UUID.randomUUID().toString(),
-                    cardId = item.card.id,
-                    date = today(),
+                    id = java.util.UUID.randomUUID().toString(), cardId = original.id, date = today(),
                     result = if (correct) ReviewResult.CORRECT else ReviewResult.WRONG,
-                    boxBefore = item.card.box,
-                    boxAfter = updated.box,
-                    hintLevel = hintLevel,
+                    boxBefore = original.box, boxAfter = updated.box, hintLevel = hintLevel,
                 )
-                onApplyReview(item.card.id, updated, log)
-            }
-            is QueueItem.FromPool -> {
-                val newCard = introduceFromPool(item.pool, today())
-                val graded = onAnswer(newCard, correct, state.settings, today())
-                onIntroduce(graded, item.pool.id)
-            }
+                if (!onApplyReview(original.id, updated, log)) return@launch
+                if (correct) correctCount++
+                totalAnswered++
+                index++
+                hintLevel = 0
+                stage = 0
+                showAskPanel = false
+            } finally { saving = false }
         }
-        if (correct) correctCount++
-        totalAnswered++
-        index++
-        hintLevel = 0
-        stage = 0
-        showAskPanel = false
     }
 
     // imePadding(): 키보드가 뜨면 스크롤 영역이 그만큼 줄어들어, '질문하기' 버튼을
     // 키보드 위로 스크롤해 올릴 수 있다.
     Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(24.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = onClose) { Text("닫기") }
+            TextButton(onClick = onClose, enabled = !saving) { Text("닫기") }
             Text("${index + 1} / ${queue.size}")
             Text(if (box > 0) "박스 $box" else "신규")
         }

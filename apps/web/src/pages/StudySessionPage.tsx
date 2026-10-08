@@ -92,6 +92,8 @@ interface Tally {
 }
 
 export default function StudySessionPage() {
+  const savingRef = useRef(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const navigate = useNavigate();
   const cardsInStore = useAppStore((s) => s.cards);
   const newPoolInStore = useAppStore((s) => s.newPool);
@@ -143,10 +145,10 @@ export default function StudySessionPage() {
       for (const pool of newFromPool) {
         // 카드 id = pool.id (introduceFromPool). 랜덤 uuid를 쓰면 같은 저수지 항목이 두 기기
         // (또는 웹/안드로이드)에서 각각 승격될 때 id가 달라 중복 카드가 남는다 — id가 pool.id면
-        // 어디서 승격하든 같은 id라 클라우드 병합(mergeByUpdatedAt)이 하나로 합친다.
+        // 같은 pool의 도입은 서버에서 직렬화하고 기존 카드의 학습 상태를 유지한다.
         const card = introduceFromPool(pool, todayStr());
         await introduceCard(card, pool.id);
-        introduced.push(card);
+        introduced.push(useAppStore.getState().cards.find(c => c.id === card.id) ?? card);
       }
       // 복습(박스1~6) → 박스0 잔류 신규 → 이번 세션 신규 도입 순.
       if (!cancelled) setQueue([...dueCards, ...leftoverNew, ...introduced]);
@@ -159,7 +161,7 @@ export default function StudySessionPage() {
           .filter((c): c is Card => !!c);
         if (pendingCards.length > 0) setRetryQueue((q) => [...q, ...pendingCards]);
       }
-    })();
+    })().catch(() => { if (!cancelled) setSaveError("학습 데이터를 준비하지 못했습니다. 홈으로 돌아가 다시 시작하세요."); });
     return () => {
       cancelled = true;
     };
@@ -235,7 +237,7 @@ export default function StudySessionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id]);
 
-  if (!queue) return <div className="page session">불러오는 중...</div>;
+  if (!queue) return <div className="page session">{saveError ?? "불러오는 중..."} {saveError && <Link to="/">홈으로</Link>}</div>;
 
   if (done) {
     const t = tallyRef.current;
@@ -354,7 +356,15 @@ export default function StudySessionPage() {
       hintLevel,
       inputMethod,
     };
-    await applyReview(current.id, updated, log);
+    if (savingRef.current) return;
+    savingRef.current = true;
+    try {
+      await applyReview(current.id, updated, log);
+      setSaveError(null);
+    } catch {
+      setSaveError("저장하지 못했습니다. 홈에서 다시 동기화한 뒤 학습을 시작하세요.");
+      return;
+    } finally { savingRef.current = false; }
 
     const t = tallyRef.current;
     t.studied += 1;
@@ -376,6 +386,7 @@ export default function StudySessionPage() {
 
   return (
     <div className="page session">
+      {saveError && <p role="alert">{saveError} <Link to="/">홈으로</Link></p>}
       <div className="session-top">
         <Link to="/" className="close-btn">
           ✕

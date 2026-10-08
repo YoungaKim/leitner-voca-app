@@ -20,7 +20,9 @@ export default function SettingsPage() {
   const [maxActiveCards, setMaxActiveCards] = useState(String(settings.maxActiveCards));
 
   const [aiModelSaved, setAiModelSaved] = useState(false);
-  const [aiKey, setAiKey] = useState(settings.aiApiKeys?.[settings.preferredAiModel] ?? "");
+  const [aiKeyDrafts, setAiKeyDrafts] = useState<Partial<Record<"claude" | "gemini" | "gpt", string>>>({});
+  const aiKey = aiKeyDrafts[settings.preferredAiModel] ?? settings.aiApiKeys?.[settings.preferredAiModel] ?? "";
+  const [aiSaving, setAiSaving] = useState(false);
   const [aiKeySaved, setAiKeySaved] = useState(false);
 
   const AI_MODEL_LABELS: Record<"gemini" | "claude" | "gpt", string> = {
@@ -87,8 +89,15 @@ export default function SettingsPage() {
   }
 
   async function handleChangeAiModel(model: "claude" | "gemini" | "gpt") {
-    await updateSettings({ preferredAiModel: model });
-    setAiKey(settings.aiApiKeys?.[model] ?? "");
+    setAiSaving(true);
+    try {
+      await updateSettings({
+        preferredAiModel: model,
+        aiApiKeys: { ...settings.aiApiKeys, [settings.preferredAiModel]: aiKey.trim() || undefined },
+      });
+    } finally {
+      setAiSaving(false);
+    }
     setAiKeySaved(false);
     setAiModelSaved(true);
     setTimeout(() => setAiModelSaved(false), 1500);
@@ -97,9 +106,14 @@ export default function SettingsPage() {
   async function handleSaveAiKey(e: React.FormEvent) {
     e.preventDefault();
     const model = settings.preferredAiModel;
-    await updateSettings({
-      aiApiKeys: { ...settings.aiApiKeys, [model]: aiKey.trim() || undefined },
-    });
+    setAiSaving(true);
+    try {
+      await updateSettings({
+        aiApiKeys: { ...settings.aiApiKeys, [model]: aiKey.trim() || undefined },
+      });
+    } finally {
+      setAiSaving(false);
+    }
     setAiKeySaved(true);
     setTimeout(() => setAiKeySaved(false), 1500);
   }
@@ -142,12 +156,14 @@ export default function SettingsPage() {
       <p className="muted">
         학습 세션의 [선생님한테 질문] 기능에 사용할 모델을 고르고, 그 모델의 API 키를 입력하세요. 키는 본인
         계정에만 저장되며(다른 기기에서도 공유), 질문할 때마다 서버 프록시를 거쳐 해당 API로 전달됩니다.
+        입력한 키는 모델을 바꿀 때도 자동 저장되며, 모델별로 유지됩니다.
       </p>
       <form className="card-form ai-form" onSubmit={handleSaveAiKey}>
         <label>
           모델
           <select
             value={settings.preferredAiModel}
+            disabled={aiSaving}
             onChange={(e) => handleChangeAiModel(e.target.value as "claude" | "gemini" | "gpt")}
           >
             <option value="gemini">{AI_MODEL_LABELS.gemini}</option>
@@ -164,7 +180,11 @@ export default function SettingsPage() {
             autoComplete="off"
             placeholder="API 키 입력"
             value={aiKey}
-            onChange={(e) => setAiKey(e.target.value)}
+            disabled={aiSaving}
+            onChange={(e) => {
+              setAiKeyDrafts((drafts) => ({ ...drafts, [settings.preferredAiModel]: e.target.value }));
+              setAiKeySaved(false);
+            }}
           />
         </label>
         <p className="muted field-hint">
@@ -174,7 +194,7 @@ export default function SettingsPage() {
           {" — "}
           {aiKeyHelp.note}
         </p>
-        <button className="btn primary" type="submit">
+        <button className="btn primary" type="submit" disabled={aiSaving}>
           키 저장
         </button>
         {aiKeySaved && <p className="muted field-hint">저장됨 ✓</p>}

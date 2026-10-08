@@ -11,6 +11,8 @@ import { isCloudEnabled } from "./lib/supabase";
 
 export default function App() {
   const load = useAppStore((s) => s.load);
+  const cloudReady = useAppStore((s) => s.cloudReady);
+  const cloudError = useAppStore((s) => s.cloudError);
   const loaded = useAppStore((s) => s.loaded);
   const mergeFromCloud = useAppStore((s) => s.mergeFromCloud);
   const resetLocal = useAppStore((s) => s.resetLocal);
@@ -58,20 +60,26 @@ export default function App() {
       if (useAppStore.getState().syncing) return;
       mergeFromCloud(user!.id);
     }
+    const timer = window.setInterval(onVisible, 30000);
+    window.addEventListener("online", onVisible);
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("online", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [user, mergeFromCloud]);
 
   // 2d §3.3: 앱 실행 시 하루 1회 자동 동기화(콘텐츠 소스 URL이 등록돼있고 자동 동기화가 켜져있으면).
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || (isCloudEnabled && !cloudReady) || syncing) return;
     if (!settings.autoSyncEnabled || !settings.contentSourceUrl || !settings.contentSourceDeckId) return;
     const lastSyncDate = syncState.lastSyncAt?.slice(0, 10);
     const todayDate = new Date().toISOString().slice(0, 10);
     if (lastSyncDate === todayDate) return;
     syncContentNow();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, settings.autoSyncEnabled, settings.contentSourceUrl, settings.contentSourceDeckId]);
+  }, [loaded, cloudReady, syncing, settings.autoSyncEnabled, settings.contentSourceUrl, settings.contentSourceDeckId]);
 
   if (!loaded || !authReady) return <div className="page">불러오는 중...</div>;
 
@@ -90,6 +98,11 @@ export default function App() {
       </div>
     );
   }
+
+  if (isCloudEnabled && !cloudReady) return <div className="page">
+    {cloudError ?? "서버 데이터를 불러오는 중..."}
+    {cloudError && <button className="btn" onClick={() => mergeFromCloud(user!.id)}>다시 시도</button>}
+  </div>;
 
   return (
     <div className="app-shell">
@@ -113,6 +126,7 @@ export default function App() {
           )}
         </nav>
       )}
+      {cloudError && <div role="alert" className="page">{cloudError}</div>}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/decks" element={<DecksPage />} />

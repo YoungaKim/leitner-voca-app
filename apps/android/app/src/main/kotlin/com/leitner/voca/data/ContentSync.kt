@@ -32,6 +32,14 @@ fun accountWideImportedIds(cards: List<Card>, newPool: List<NewPoolItem>, syncSt
     return ids
 }
 
+/** 이미 학습 중이거나 대기 중인 문장 자체의 키. 원천 시트 id 변경도 중복으로 막는다. */
+fun accountWideImportedSentenceKeys(cards: List<Card>, newPool: List<NewPoolItem>): MutableSet<String> {
+    val keys = mutableSetOf<String>()
+    for (c in cards) keys.add(sentenceKey(c.promptKo, c.answerEn))
+    for (p in newPool) keys.add(sentenceKey(p.promptKo, p.answerEn))
+    return keys
+}
+
 data class ContentSyncResult(
     val items: List<NewPoolItem>,
     val skipped: Int,
@@ -81,7 +89,8 @@ suspend fun runContentSync(
 
     val (rows, errors) = parseCsv(text)
     val already = accountWideImportedIds(cards, newPool, syncState)
-    val (items, skipped) = toNewPoolItems(rows, targetDeckId, already)
+    val sentenceKeys = accountWideImportedSentenceKeys(cards, newPool)
+    val (items, skipped) = toNewPoolItems(rows, targetDeckId, already, sentenceKeys)
 
     val importedIds = (syncState.importedIds + items.map { it.id }).distinct()
     val resultSummary = if (errors.isNotEmpty()) {

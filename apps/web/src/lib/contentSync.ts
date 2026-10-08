@@ -2,7 +2,7 @@
 // dedupe는 "덱 하나" 범위가 아니라 계정 전체 범위로 한다 — 이미 카드로 있거나(어느 덱이든)
 // 저수지에 있거나(어느 덱이든), syncState.importedIds에 기록된 id는 전부 건너뛴다.
 import type { Card, NewPoolItem, SyncState } from "@leitner/core";
-import { parseCsv, toNewPoolItems } from "./csv";
+import { parseCsv, sentenceKey, toNewPoolItems } from "./csv";
 import { supabase } from "./supabase";
 
 /**
@@ -60,6 +60,14 @@ export function accountWideImportedIds(cards: Card[], newPool: NewPoolItem[], sy
   return ids;
 }
 
+/** 이미 학습 중이거나 대기 중인 문장 자체의 키. 원천 시트 id가 바뀌어도 재흡수하지 않는다. */
+export function accountWideImportedSentenceKeys(cards: Card[], newPool: NewPoolItem[]): Set<string> {
+  const keys = new Set<string>();
+  for (const c of cards) keys.add(sentenceKey(c.promptKo, c.answerEn));
+  for (const p of newPool) keys.add(sentenceKey(p.promptKo, p.answerEn));
+  return keys;
+}
+
 export async function runContentSync(
   sourceUrl: string,
   targetDeckId: string,
@@ -86,7 +94,8 @@ export async function runContentSync(
 
   const { rows, errors } = parseCsv(text);
   const already = accountWideImportedIds(cards, newPool, syncState);
-  const { items, skipped } = toNewPoolItems(rows, targetDeckId, already);
+  const sentenceKeys = accountWideImportedSentenceKeys(cards, newPool);
+  const { items, skipped } = toNewPoolItems(rows, targetDeckId, already, sentenceKeys);
 
   const importedIds = Array.from(new Set([...syncState.importedIds, ...items.map((i) => i.id)]));
   const resultSummary =

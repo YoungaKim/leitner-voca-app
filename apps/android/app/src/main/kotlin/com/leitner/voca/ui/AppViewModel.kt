@@ -32,27 +32,44 @@ data class AppUiState(
 
 class AppViewModel(private val repo: AppRepository) : ViewModel() {
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
+
+    private suspend fun save(action: suspend () -> Unit): Boolean = try {
+        action()
+        _error.value = null
+        true
+    } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        _error.value = "서버 저장에 실패했습니다. 동기화 후 다시 시도하세요: ${e.message}"
+        false
+    }
+
+    fun refreshThenStart(onReady: () -> Unit) = viewModelScope.launch {
+        if (save { repo.refreshFromCloud() }) onReady()
+    }
+
     val uiState: StateFlow<AppUiState> = combine(
         repo.decks, repo.cards, repo.newPool, repo.settings, repo.syncState,
     ) { decks, cards, newPool, settings, syncState ->
         AppUiState(loaded = true, decks = decks, cards = cards, newPool = newPool, settings = settings, syncState = syncState)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppUiState())
 
-    fun addDeck(name: String) = viewModelScope.launch { repo.addDeck(name) }
+    fun addDeck(name: String) = viewModelScope.launch { save { repo.addDeck(name) } }
 
-    fun deleteDeck(id: String) = viewModelScope.launch { repo.deleteDeck(id) }
+    fun deleteDeck(id: String) = viewModelScope.launch { save { repo.deleteDeck(id) } }
 
     fun addCard(deckId: String, promptKo: String, answerEn: String, chunkNote: String?) =
-        viewModelScope.launch { repo.addCard(deckId, promptKo, answerEn, chunkNote?.ifBlank { null }, today()) }
+        viewModelScope.launch { save { repo.addCard(deckId, promptKo, answerEn, chunkNote?.ifBlank { null }, today()) } }
 
-    fun deleteCard(id: String) = viewModelScope.launch { repo.deleteCard(id) }
+    fun deleteCard(id: String) = viewModelScope.launch { save { repo.deleteCard(id) } }
 
-    fun applyReview(cardId: String, updated: Card, log: ReviewLog) =
-        viewModelScope.launch { repo.applyReview(updated, log) }
+    suspend fun applyReview(cardId: String, updated: Card, log: ReviewLog): Boolean =
+        save { repo.applyReview(updated, log) }
 
-    fun introduceCard(card: Card, poolId: String) = viewModelScope.launch { repo.introduceCard(card, poolId) }
+    suspend fun introduceCard(card: Card, poolId: String): Boolean = save { repo.introduceCard(card, poolId) }
 
-    fun updateSettings(settings: Settings) = viewModelScope.launch { repo.updateSettings(settings) }
+    fun updateSettings(settings: Settings) = viewModelScope.launch { save { repo.updateSettings(settings) } }
 
     /** DESIGN §6 '선생님한테 질문' — 결과(성공 답변/실패 사유)를 콜백으로 화면에 전달. */
     fun askTeacher(

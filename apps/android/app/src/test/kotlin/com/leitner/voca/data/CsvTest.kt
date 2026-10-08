@@ -10,9 +10,9 @@ class CsvTest {
     // 웹/안드로이드가 같은 문장에서 같은 id 를 내야 다기기 중복이 안 생긴다.
     @Test
     fun `contentId는 PC 웹 구현과 동일한 해시를 낸다`() {
-        assertEquals("hoiw15m", contentId("x", "y"))
+        assertEquals("h1j2giq9", contentId("x", "y"))
         assertEquals(
-            "h1edoyms",
+            "h1nsrz5t",
             contentId("회의가 끝나면 보고서를 보내겠다.", "I will send the report when the meeting ends."),
         )
     }
@@ -38,5 +38,16 @@ class CsvTest {
         assertEquals(2, result.rows.size)
         assertEquals(contentId("안녕", "hi"), result.rows[0].id)
         assertEquals("sheet-2", result.rows[1].id)
+    }
+
+    @Test
+    fun `id가 달라도 같은 문장은 한 번만 저수지에 넣는다`() {
+        val rows = parseCsv(
+            "id,한글 문장,영어 문장\nsheet-1,안녕   친구,Hello World\nsheet-2,안녕 친구,hello world\n"
+        ).rows
+        val (items, skipped) = toNewPoolItems(rows, "deck-1", emptySet())
+        assertEquals(1, items.size)
+        assertEquals("sheet-1", items[0].id)
+        assertEquals(1, skipped)
     }
 }

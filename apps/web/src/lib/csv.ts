@@ -26,7 +26,7 @@ const HEADER_MAP: Record<string, keyof ParsedCsvRow> = {
 // 동기화마다 "새 id"가 되어 전체가 다시 흡수되므로(중복 방지 키가 id다, §3.4), 문장 내용
 // (한글+영어)에서 결정적으로 해시를 만들어 안정적인 id로 삼는다. 시트에서 문장을 고치면
 // 그 행은 새 항목으로 취급된다(id를 바꾼 것과 동일) — 사소한 오타 수정 시 유의.
-function contentId(promptKo: string, answerEn: string): string {
+export function contentId(promptKo: string, answerEn: string): string {
   const s = `${promptKo}${answerEn}`;
   let h = 0x811c9dc5; // FNV-1a 32bit
   for (let i = 0; i < s.length; i++) {
@@ -34,6 +34,12 @@ function contentId(promptKo: string, answerEn: string): string {
     h = Math.imul(h, 0x01000193);
   }
   return `h${(h >>> 0).toString(36)}`;
+}
+
+/** 원천 id와 무관한 문장 중복 판정 키. 공백과 영문 대소문자 차이는 무시한다. */
+export function sentenceKey(promptKo: string, answerEn: string): string {
+  const normalize = (text: string) => text.trim().replace(/\s+/g, " ");
+  return `${normalize(promptKo)}\u0001${normalize(answerEn).toLowerCase()}`;
 }
 
 /** 아주 단순한 CSV 파서. 셀 안에 콤마가 있을 경우를 대비해 큰따옴표 인용을 지원한다. */
@@ -124,13 +130,15 @@ export function parseCsv(text: string): CsvParseResult {
 export function toNewPoolItems(
   rows: ParsedCsvRow[],
   deckId: string,
-  alreadyImportedIds: Set<string>
+  alreadyImportedIds: Set<string>,
+  alreadyImportedSentenceKeys: Set<string> = new Set()
 ): { items: NewPoolItem[]; skipped: number } {
   const now = new Date().toISOString();
   const items: NewPoolItem[] = [];
   let skipped = 0;
   for (const row of rows) {
-    if (alreadyImportedIds.has(row.id)) {
+    const key = sentenceKey(row.promptKo, row.answerEn);
+    if (alreadyImportedIds.has(row.id) || alreadyImportedSentenceKeys.has(key)) {
       skipped++;
       continue;
     }
@@ -145,6 +153,8 @@ export function toNewPoolItems(
       status: "pending",
       importedAt: now,
     });
+    // 같은 동기화 응답 안에서 id만 다른 동일 문장이 두 번 있어도 첫 행만 흡수한다.
+    alreadyImportedSentenceKeys.add(key);
   }
   return { items, skipped };
 }

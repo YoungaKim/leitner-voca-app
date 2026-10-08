@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS, NEW_CARD_BOX, today as todayStr } from "@leitner/core
 import type { Card, Deck, NewPoolItem, ReviewLog, Settings, SyncState } from "@leitner/core";
 import {
   cardsRepo,
+  replaceCloudCache,
   clearAllLocal,
   deckRepo,
   newPoolRepo,
@@ -16,28 +17,35 @@ import { runContentSync } from "./lib/contentSync";
 import {
   deleteCardRemote,
   deleteDeckRemote,
-  deletePoolItemRemote,
   fullSync,
   pushCard,
   pushDeck,
   pushPoolItems,
-  pushReviewLogs,
+  saveReviewRemote,
+  introduceRemote,
   pushSettings,
   pushSyncState,
 } from "./lib/sync";
 
 const LAST_SYNCED_USER_KEY = "leitner-last-synced-user-id";
 
-// 2a: 로그인 상태면 로컬 저장과 동시에 클라우드에도 반영(write-through)한다.
-// 실패해도 로컬 저장은 이미 끝났으니 UI는 막지 않는다 — 다음 fullSync에서 다시 맞춰진다.
-function mirrorToCloud(fn: (userId: string) => Promise<void>) {
+// 로그인된 계정은 서버 저장이 성공한 뒤 로컬 캐시를 갱신한다.
+async function mirrorToCloud(fn: (userId: string) => Promise<void>) {
   const userId = getCurrentUserId();
   if (!userId) return;
-  fn(userId).catch((err) => console.warn("cloud sync failed (will retry on next sync)", err));
+  try {
+    await fn(userId);
+    useAppStore.setState({ cloudError: null });
+  } catch (err) {
+    useAppStore.setState({ cloudError: "서버에 저장하지 못했습니다. 연결을 확인하고 다시 시도하세요." });
+    throw err;
+  }
 }
 
 interface AppState {
   loaded: boolean;
+  cloudReady: boolean;
+  cloudError: string | null;
   decks: Deck[];
   cards: Card[];
   newPool: NewPoolItem[];
@@ -73,8 +81,21 @@ interface AppState {
   introduceCard(card: Card, poolId: string): Promise<void>;
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
+// Serialize cache replacements with saves so a slow pull cannot overwrite a just-saved review.
+let dataQueue: Promise<unknown> = Promise.resolve();
+function serialized<T extends (...args: any[]) => Promise<any>>(fn: T): T {
+  return ((...args: Parameters<T>) => {
+    const result = dataQueue.then(() => fn(...args));
+    dataQueue = result.catch(() => undefined);
+    return result;
+  }) as T;
+}
+
+export const useAppStore = create<AppState>((set, get) => {
+  const state: AppState = {
   loaded: false,
+  cloudReady: false,
+  cloudError: null,
   decks: [],
   cards: [],
   newPool: [],
@@ -97,7 +118,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   /** 로그인 직후 1회 호출(DESIGN §3.9) — 클라우드와 병합해 로컬/스토어를 덮어쓴다. */
   async mergeFromCloud(userId) {
-    set({ syncing: true });
+    if (get().syncing) return;
+    set({ syncing: true, cloudError: null });
     try {
       // 로컬(IndexedDB) 로드가 끝나기 전에 이게 먼저 돌면 get()이 DEFAULT_SETTINGS를
       // 돌려주고, fullSync의 LWW가 "local.updatedAt 없음 → remote 채택"으로 빠져 방금까지
@@ -110,26 +132,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       const lastUserId = localStorage.getItem(LAST_SYNCED_USER_KEY);
       if (lastUserId && lastUserId !== userId) {
         await clearAllLocal();
-        set({ decks: [], cards: [], newPool: [], settings: DEFAULT_SETTINGS });
+        set({ decks: [], cards: [], newPool: [], settings: DEFAULT_SETTINGS, cloudReady: false });
       }
 
-      const { decks, cards, newPool, settings } = get();
-      const reviewLog = await reviewLogRepo.all();
-      const merged = await fullSync(userId, { decks, cards, newPool, settings, reviewLog });
-      await Promise.all([
-        deckRepo.putMany(merged.decks),
-        cardsRepo.putMany(merged.cards),
-        newPoolRepo.putMany(merged.newPool),
-        settingsRepo.put(merged.settings),
-        reviewLogRepo.putMany(merged.reviewLog),
-      ]);
+      const merged = await fullSync(userId, { settings: get().settings });
+      await replaceCloudCache(merged);
       // reviewLog는 스토어 상태가 아니라 IndexedDB에만 두므로 set에서 제외한다.
       const { reviewLog: _rl, ...mergedState } = merged;
-      set({ ...mergedState, syncing: false });
+      set({ ...mergedState, syncing: false, cloudReady: true });
       localStorage.setItem(LAST_SYNCED_USER_KEY, userId);
     } catch (err) {
       console.warn("초기 동기화 실패", err);
-      set({ syncing: false });
+      set({ syncing: false, cloudError: "서버 동기화에 실패했습니다. 다시 시도하세요." });
     }
   },
 
@@ -146,18 +160,25 @@ export const useAppStore = create<AppState>((set, get) => ({
   async resetLocal() {
     await clearAllLocal();
     localStorage.removeItem(LAST_SYNCED_USER_KEY);
-    set({ decks: [], cards: [], newPool: [], settings: DEFAULT_SETTINGS, syncState: { importedIds: [] } });
+    set({ decks: [], cards: [], newPool: [], settings: DEFAULT_SETTINGS, syncState: { importedIds: [] }, cloudReady: false, cloudError: null });
   },
 
   async updateSettings(patch) {
     const updated: Settings = { ...get().settings, ...patch, updatedAt: new Date().toISOString() };
+    await mirrorToCloud((userId) => pushSettings(userId, updated));
     await settingsRepo.put(updated);
     set({ settings: updated });
-    mirrorToCloud((userId) => pushSettings(userId, updated));
+
   },
 
   /** 2d — 설정 화면 [지금 동기화] 버튼 및 앱 시작 시 자동 동기화(하루 1회)에서 사용. */
   async syncContentNow() {
+    // 자동 동기화와 사용자의 [지금 동기화]가 겹치면 같은 항목을 메모리에 두 번 추가할 수 있다.
+    if (get().contentSyncing) return;
+    if (getCurrentUserId()) {
+      await get().syncNow();
+      if (get().cloudError) return;
+    }
     const { settings, cards, newPool, syncState } = get();
     if (!settings.contentSourceUrl || !settings.contentSourceDeckId) return;
     set({ contentSyncing: true, contentSyncErrors: [] });
@@ -172,9 +193,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (result.items.length > 0) {
         await get().importNewPoolItems(result.items);
       }
+      await mirrorToCloud((userId) => pushSyncState(userId, result.syncState));
       await syncStateRepo.put(result.syncState);
       set({ syncState: result.syncState, contentSyncing: false, contentSyncErrors: result.errors });
-      mirrorToCloud((userId) => pushSyncState(userId, result.syncState));
+
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       set({ contentSyncing: false, contentSyncErrors: [message] });
@@ -190,9 +212,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    await mirrorToCloud((userId) => pushDeck(userId, deck, true));
     await deckRepo.put(deck);
     set((s) => ({ decks: [...s.decks, deck] }));
-    mirrorToCloud((userId) => pushDeck(userId, deck));
+
     return deck;
   },
 
@@ -201,19 +224,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     const existing = get().decks.find((d) => d.id === id);
     if (!trimmed || !existing || trimmed === existing.name) return;
     const updated: Deck = { ...existing, name: trimmed, updatedAt: new Date().toISOString() };
+    await mirrorToCloud((userId) => pushDeck(userId, updated));
     await deckRepo.put(updated);
     set((s) => ({ decks: s.decks.map((d) => (d.id === id ? updated : d)) }));
-    mirrorToCloud((userId) => pushDeck(userId, updated));
+
   },
 
   async deleteDeck(id) {
+    await mirrorToCloud((userId) => deleteDeckRemote(userId, id));
     await deckRepo.removeCascade(id);
     set((s) => ({
       decks: s.decks.filter((d) => d.id !== id),
       cards: s.cards.filter((c) => c.deckId !== id),
       newPool: s.newPool.filter((p) => p.deckId !== id),
     }));
-    mirrorToCloud((userId) => deleteDeckRemote(userId, id));
+
   },
 
   async addCard({ deckId, promptKo, answerEn, chunkNote, tags }) {
@@ -235,53 +260,66 @@ export const useAppStore = create<AppState>((set, get) => ({
       tags: tags ?? [],
       updatedAt: new Date().toISOString(),
     };
+    await mirrorToCloud((userId) => pushCard(userId, card, true));
     await cardsRepo.put(card);
     set((s) => ({ cards: [...s.cards, card] }));
-    mirrorToCloud((userId) => pushCard(userId, card));
+
   },
 
   async updateCard(card) {
     const updated = { ...card, updatedAt: new Date().toISOString() };
+    await mirrorToCloud((userId) => pushCard(userId, updated));
     await cardsRepo.put(updated);
     set((s) => ({ cards: s.cards.map((c) => (c.id === updated.id ? updated : c)) }));
-    mirrorToCloud((userId) => pushCard(userId, updated));
+
   },
 
   async deleteCard(id) {
+    await mirrorToCloud((userId) => deleteCardRemote(userId, id));
     await cardsRepo.remove(id);
     set((s) => ({ cards: s.cards.filter((c) => c.id !== id) }));
-    mirrorToCloud((userId) => deleteCardRemote(userId, id));
+
   },
 
   async importNewPoolItems(items) {
     if (items.length === 0) return;
-    await newPoolRepo.putMany(items);
-    set((s) => ({ newPool: [...s.newPool, ...items] }));
-    mirrorToCloud((userId) => pushPoolItems(userId, items));
+    // IndexedDB upsert만으로는 Zustand 배열의 중복 append를 막지 못한다.
+    const existingIds = new Set(get().newPool.map((item) => item.id));
+    const uniqueItems = items.filter((item) => !existingIds.has(item.id));
+    if (uniqueItems.length === 0) return;
+    await mirrorToCloud((userId) => pushPoolItems(userId, uniqueItems));
+    await newPoolRepo.putMany(uniqueItems);
+    set((s) => ({ newPool: [...s.newPool, ...uniqueItems] }));
+
   },
 
   async applyReview(cardId, updated, log) {
     const card = { ...updated, updatedAt: new Date().toISOString() };
+    await mirrorToCloud(userId => saveReviewRemote(userId, card, log, get().cards.find(c => c.id === cardId)?.updatedAt));
     await cardsRepo.put(card);
     await reviewLogRepo.add(log);
     set((s) => ({ cards: s.cards.map((c) => (c.id === cardId ? card : c)) }));
-    mirrorToCloud(async (userId) => {
-      await pushCard(userId, card);
-      await pushReviewLogs(userId, [log]);
-    });
+
   },
 
   async introduceCard(card, poolId) {
-    const withTimestamp = { ...card, updatedAt: new Date().toISOString() };
+    let withTimestamp: Card = { ...card, updatedAt: new Date().toISOString() };
+    await mirrorToCloud(async userId => {
+      withTimestamp = (await introduceRemote(userId, withTimestamp, poolId)) ?? withTimestamp;
+    });
     await cardsRepo.put(withTimestamp);
     await newPoolRepo.remove(poolId);
     set((s) => ({
-      cards: [...s.cards, withTimestamp],
+      cards: s.cards.some((existing) => existing.id === card.id)
+        ? s.cards.map((existing) => (existing.id === card.id ? withTimestamp : existing))
+        : [...s.cards, withTimestamp],
       newPool: s.newPool.filter((p) => p.id !== poolId),
     }));
-    mirrorToCloud(async (userId) => {
-      await pushCard(userId, withTimestamp);
-      await deletePoolItemRemote(userId, poolId);
-    });
+
   },
-}));
+  };
+  const actions = ["mergeFromCloud", "resetLocal", "updateSettings", "addDeck", "renameDeck", "deleteDeck",
+    "addCard", "updateCard", "deleteCard", "importNewPoolItems", "applyReview", "introduceCard"] as const;
+  for (const action of actions) (state as any)[action] = serialized(state[action]);
+  return state;
+});
